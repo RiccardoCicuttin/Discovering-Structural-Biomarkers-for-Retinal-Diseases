@@ -6,11 +6,16 @@ library(dplyr) # per manipolare i dati
 path <- "data/PatientsData.xlsx"
 
 # 3. Lettura dei fogli Excel
-# Se il primo foglio contiene il Layer 1 e il secondo il Layer 2, farai così:
+
 data_AMD <- read_excel(path, sheet = 1) 
-# oppure usando il nome del foglio: sheet = "NomeDelFoglio"
 
 data_CSR <- read_excel(path, sheet = 2)
+
+data_DR <- read_excel(path, sheet = 3)
+
+data_MH <- read_excel(path, sheet = 4)
+
+data_normal <- read_excel(path, sheet = 5)
 
 # Verifica visiva dei dati caricati
 head(data_AMD)
