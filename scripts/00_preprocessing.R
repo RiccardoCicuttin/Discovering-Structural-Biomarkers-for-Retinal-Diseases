@@ -1,23 +1,64 @@
-# 1. Caricamento delle librerie necessarie
 library(readxl)
-library(dplyr) # per manipolare i dati
+library(dplyr) 
+library(tidyr)
 
-# 2. Definizione del percorso relativo
 path <- "data/PatientsData.xlsx"
 
-# 3. Lettura dei fogli Excel
+data_AMD = read_excel(path, sheet = 1) %>% 
+  # mean of every row
+  mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
+  # select just the mean value, the name of the layer, and the image ID
+  select(mean_value, names, image) %>% 
+  # use as observation ID the image ID to change the format
+  pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>%
+  # erase the image ID and add the disease label column
+  select(-image) %>% mutate(label = "AMD")
 
-data_AMD <- read_excel(path, sheet = 1) 
+data_CSR = read_excel(path, sheet = 2) %>% 
+  mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
+  select(mean_value, names, image) %>% 
+  pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>%
+  select(-image) %>% mutate(label = "CSR")
 
-data_CSR <- read_excel(path, sheet = 2)
+data_DR = read_excel(path, sheet = 3) %>% 
+  mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
+  select(mean_value, names, image) %>% 
+  pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>% 
+  select(-image) %>% mutate(label = "DR")
 
-data_DR <- read_excel(path, sheet = 3)
+data_MH = read_excel(path, sheet = 4) %>% 
+  mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
+  select(mean_value, names, image) %>% 
+  pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>%
+  select(-image) %>% mutate(label = "MH")
 
-data_MH <- read_excel(path, sheet = 4)
+data_normal = read_excel(path, sheet = 5) %>% 
+  mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
+  select(mean_value, names, image) %>% 
+  pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>% 
+  select(-image) %>% mutate(label = "normal")
 
-data_normal <- read_excel(path, sheet = 5)
+# merge into one data set the data sets obtained
+data = bind_rows(data_normal, data_AMD, data_CSR, data_DR, data_MH)
 
-#hello
-# Verifica visiva dei dati caricati
-head(data_AMD)
+# NAs are not present
+sum(is.na(data))==0 #TRUE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
