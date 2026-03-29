@@ -2,7 +2,7 @@ library(ggplot2)
 library(GGally)
 library(patchwork)
 library(dplyr)
-
+library(corrplot)
 # Scatteplots
 # Assicurati che il tuo vettore my_cols sia caricato nell'ambiente
 # my_cols <- c("normal" = "#4E79A7", "MH" = "#F28E2B", "DR" = "#E15759", "CSR" = "#76B7B2", "AMD" = "#59A14F")
@@ -131,6 +131,16 @@ ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
        x = "Diagnosis",
        y = "Width (pixel)")
 
+#corrplot
 
+par(mfrow = c(2,3))
 
+for (m in unique(retina_df$label)) {
+  
+  df <- subset(retina_df, label == m)[, 1:6]
+  cor_mat <- cor(df, use = "pairwise.complete.obs")
+  
+  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50" )
+  title(m, line = 1.5, cex = 1)
+}
 
