@@ -41,6 +41,18 @@ data_normal = read_excel(path, sheet = 5) %>%
 # merge into one data set the data sets obtained
 data = bind_rows(data_normal, data_AMD, data_CSR, data_DR, data_MH)
 
+# Original names are not self-explicative and presente spaces in them
+# names(data)[1:6]
+# We saved them using a map, with keys the new names
+# New names are "layer_j" with j=1,..,6. 
+# layer1 is the most internal one
+original_names = colnames(data)
+new_names = paste0("layer", 1:6);
+retina_names_map = setNames(original_names, new_names)
+#retina_names_map['layer1']
+
+names(data)[na.omit(1:6)] = new_names
+
 # NAs are not present
 sum(is.na(data))==0 #TRUE
 
