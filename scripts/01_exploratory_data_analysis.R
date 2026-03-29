@@ -122,7 +122,7 @@ ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
        y = "Width (pixel)")
 
 
-# Corrplot
+# Corrplots
 par(mfrow = c(2,3))
 
 for (m in unique(retina_df$label)) {
@@ -130,7 +130,7 @@ for (m in unique(retina_df$label)) {
   df = subset(retina_df, label == m)[, 1:6]
   cor_mat = cor(df, use = "pairwise.complete.obs")
   
-  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50" )
-  title(m, line = 1.5, cex = 1)
+  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
+  title(m, line = 3, cex.main = 1.5)
 }
 
