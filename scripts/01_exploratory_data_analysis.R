@@ -3,10 +3,18 @@ library(GGally)
 library(patchwork)
 library(dplyr)
 library(corrplot)
-# Scatteplots
-# Assicurati che il tuo vettore my_cols sia caricato nell'ambiente
-# my_cols <- c("normal" = "#4E79A7", "MH" = "#F28E2B", "DR" = "#E15759", "CSR" = "#76B7B2", "AMD" = "#59A14F")
 
+# Personalized colors
+my_cols = c(
+  "normal" = "dodgerblue", 
+  "MH"     = "#F28E2B", 
+  "DR"     = "mediumpurple", 
+  "CSR"    = "#E15759", 
+  "AMD"    = "seagreen3"
+)
+
+
+# Scatterplots
 ggpairs(
   retina_df, 
   columns = 1:6, 
@@ -54,11 +62,6 @@ ggpairs(
   labs(x = "Spessore (pixel)", y = "Spessore (pixel)")
 
 
-# 1. Definiamo le variabili e le etichette per la diagonale
-vars <- c("layer1", "layer2", "layer3", "layer4", "layer5", "layer6")
-nomi_diag <- c("ILM-NFL", "NFL-IPL", "IPL-INL", "INL-OPL", "OPL-ONL", "ISOS-RPE")
-
-
 # Modified format for plotting purposes
 data_long <- retina_df %>%
   select(label, starts_with("layer")) %>%
@@ -66,14 +69,6 @@ data_long <- retina_df %>%
                names_to = "layer_name", 
                values_to = "thickness")
 
-# personalize colours
-my_cols <- c(
-  "normal" = "dodgerblue", 
-  "MH"     = "#F28E2B", 
-  "DR"     = "mediumpurple", 
-  "CSR"    = "#E15759", 
-  "AMD"    = "seagreen3"
-)
 
 # Ridgeplots
 ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
@@ -87,22 +82,17 @@ ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
     vline_color = "grey40",
     vline_linetype = "dashed"
   ) +
-  # Applichiamo il labeller personalizzato al facet
   facet_wrap(~ layer_name, scales = "free_x") + 
   #scale_fill_brewer(palette = "my_cols") +
   scale_fill_manual(values = my_cols) +
   theme_minimal() + 
   theme(
     legend.position = "none",
-    # Griglie interne
     panel.grid.major = element_line(color = "grey70", linewidth = 0.5),
     panel.grid.minor = element_line(color = "grey85", linewidth = 0.25),
-    # Riquadro nero rigido attorno a ogni facet (supporto geometrico)
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
-    # Riquadro e testo del titolo del facet identici al boxplot
     strip.background = element_rect(fill = "grey90", color = "black"),
     strip.text = element_text(face = "bold"),
-    # Aggiustamento specifico per i ridgeplot per allineare il testo Y alle linee
     axis.text.y = element_text(vjust = 0)
   ) + 
   labs(
@@ -131,14 +121,14 @@ ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
        x = "Diagnosis",
        y = "Width (pixel)")
 
-#corrplot
 
+# Corrplot
 par(mfrow = c(2,3))
 
 for (m in unique(retina_df$label)) {
   
-  df <- subset(retina_df, label == m)[, 1:6]
-  cor_mat <- cor(df, use = "pairwise.complete.obs")
+  df = subset(retina_df, label == m)[, 1:6]
+  cor_mat = cor(df, use = "pairwise.complete.obs")
   
   corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50" )
   title(m, line = 1.5, cex = 1)
