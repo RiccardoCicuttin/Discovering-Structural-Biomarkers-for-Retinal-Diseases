@@ -3,8 +3,7 @@ library(ggplot2)
 library(GGally)
 
 
-
-ggpairs(data, 
+ggpairs(retina_df, 
         columns = 1:6, 
         aes(color = label, alpha = 0.5),
         # 1. Definisce i nomi personalizzati
@@ -29,4 +28,30 @@ ggpairs(data,
        y = "Spessore Misurato (pixel)")
 
 
-  
+
+ggpairs(retina_df, 
+        columns = 1:6, 
+        aes(color = label, alpha = 0.5), # Colore attivo per i punti in basso
+        
+        columnLabels = c("ILM-NFL", "NFL-IPL", "IPL-INL", "INL-OPL", "OPL-ONL", "ISOS-RPE"),
+        axisLabels = "internal",
+        
+        # PARTE ALTA: Un solo valore numerico (correlazione globale)
+        upper = list(
+          continuous = wrap("cor", mapping = aes(color = NULL), size = 5)
+        ),
+        
+        # DIAGONALE: Solo i nomi dei layer
+        diag = list(continuous = "blankDiag"),
+        
+        # PARTE BASSA: Grafici a punti colorati per patologia
+        lower = list(continuous = "points")
+) + 
+  theme_minimal() +
+  theme(
+    strip.background = element_blank(), # Rimuove i bordi delle etichette esterne
+    strip.text = element_blank(),       # Rimuove il testo delle etichette esterne
+    axis.title.x = element_text(margin = margin(t = 10)),
+    axis.title.y = element_text(margin = margin(r = 10))
+  ) +
+  labs(x = "Spessore (pixel)", y = "Spessore (pixel)")
