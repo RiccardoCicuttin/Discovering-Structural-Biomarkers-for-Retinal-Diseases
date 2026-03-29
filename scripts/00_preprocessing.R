@@ -2,7 +2,7 @@ library(readxl)
 library(dplyr) 
 library(tidyr)
 
-path <- "data/PatientsData.xlsx"
+path = "data/PatientsData.xlsx"
 
 data_AMD = read_excel(path, sheet = 1) %>% 
   # mean of every row
@@ -39,22 +39,22 @@ data_normal = read_excel(path, sheet = 5) %>%
   select(-image) %>% mutate(label = "normal")
 
 # merge into one data set the data sets obtained
-data = bind_rows(data_normal, data_AMD, data_CSR, data_DR, data_MH)
+retina_df = bind_rows(data_normal, data_AMD, data_CSR, data_DR, data_MH)
 
-# Original names are not self-explicative and presente spaces in them
+# Original names are not self-explicative and presenten spaces in them
 # names(data)[1:6]
 # We saved them using a map, with keys the new names
 # New names are "layer_j" with j=1,..,6. 
 # layer1 is the most internal one
-original_names = colnames(data)
+original_names = colnames(retina_df[,-7])
 new_names = paste0("layer", 1:6);
 retina_names_map = setNames(original_names, new_names)
 #retina_names_map['layer1']
 
-names(data)[na.omit(1:6)] = new_names
+names(retina_df)[na.omit(1:6)] = new_names
 
 # NAs are not present
-sum(is.na(data))==0 #TRUE
+sum(is.na(retina_df))==0 #TRUE
 
 
 
