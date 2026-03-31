@@ -3,6 +3,9 @@ library(GGally)
 library(patchwork)
 library(dplyr)
 library(corrplot)
+library(MVN)
+library(car)
+library(mvtnorm)
 
 # Personalized colors
 my_cols = c(
@@ -84,7 +87,7 @@ data_long <- retina_df %>%
 
 
 # Ridgeplots
-ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
+ridgeplots = ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
   geom_density_ridges(
     scale = 1.5, 
     alpha = 1, 
@@ -116,7 +119,7 @@ ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
 
 
 # Boxplots
-ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
+boxplots = ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
   geom_boxplot(color = "black", outlier.shape = NULL, outlier.fill = "white", 
                outlier.size = 1.5, fatten = 2) +
   facet_wrap(~ layer_name, ncol = 3, scales = "free_y") +
