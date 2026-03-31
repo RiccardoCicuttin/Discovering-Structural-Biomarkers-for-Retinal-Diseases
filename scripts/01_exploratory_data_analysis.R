@@ -117,11 +117,13 @@ ridgeplots = ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
     y = "Diagnosis" 
   )
 
+ggsave("figures/exploratory_data_analysis/ridgeplots.png", plot = ridgeplots, width = 8, height = 6, 
+      units = "in", dpi = 300)
 
 # Boxplots
 boxplots = ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
   geom_boxplot(color = "black", outlier.shape = NULL, outlier.fill = "white", 
-               outlier.size = 1.5, fatten = 2) +
+               outlier.size = 1.5, median.linewidth = 1) +
   facet_wrap(~ layer_name, ncol = 3, scales = "free_y") +
   #scale_fill_brewer(palette = "mycols") +
   scale_fill_manual(values = my_cols) +
@@ -137,11 +139,13 @@ boxplots = ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
        x = "Diagnosis",
        y = "Thickness (pixel)")
 
+ggsave("figures/exploratory_data_analysis/boxplots.png", plot = boxplots, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
 # Testing normality
 
 # Univariate normality (qqplots)
-ggplot(data_long, aes(sample = thickness, color = label)) +
+qqplots = ggplot(data_long, aes(sample = thickness, color = label)) +
   # sample quantiles vs theoretical ones
   stat_qq(alpha = 0.6, size = 1.2) +
   
@@ -170,6 +174,9 @@ ggplot(data_long, aes(sample = thickness, color = label)) +
     x = "Theoretical normal quantiles",
     y = "Sample quantiles (thickness in pixel)"
   )
+
+ggsave("figures/exploratory_data_analysis/qqplots.png", plot = qqplots, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
 # Multivariate normality
 labels=levels(as.factor(retina_df$label)) # there are five diagnosis (4 diseases + healthy)
