@@ -62,6 +62,19 @@ ggpairs(
   labs(x = "Spessore (pixel)", y = "Spessore (pixel)")
 
 
+# Corrplots
+par(mfrow = c(2,3))
+
+for (m in unique(retina_df$label)) {
+  
+  df = subset(retina_df, label == m)[, 1:6]
+  cor_mat = cor(df, use = "pairwise.complete.obs")
+  
+  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
+  title(m, line = 3, cex.main = 1.5)
+}
+
+
 # Modified format for plotting purposes
 data_long <- retina_df %>%
   select(label, starts_with("layer")) %>%
@@ -97,7 +110,7 @@ ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
   ) + 
   labs(
     title = "Density estimates for the mean width of retinal layers",
-    x = "Width measured in pixels",
+    x = "Thickness measured in pixels",
     y = "Diagnosis" 
   )
 
@@ -119,18 +132,108 @@ ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
   ) +
   labs(title = "Retinal width per layer",
        x = "Diagnosis",
-       y = "Width (pixel)")
+       y = "Thickness (pixel)")
 
 
-# Corrplots
-par(mfrow = c(2,3))
+# Testing normality
 
-for (m in unique(retina_df$label)) {
+# Univariate normality (qqplots)
+ggplot(data_long, aes(sample = thickness, color = label)) +
+  # sample quantiles vs theoretical ones
+  stat_qq(alpha = 0.6, size = 1.2) +
   
-  df = subset(retina_df, label == m)[, 1:6]
-  cor_mat = cor(df, use = "pairwise.complete.obs")
+  stat_qq_line(color = "black", linetype = "dashed", linewidth = 0.5) +
   
-  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
-  title(m, line = 3, cex.main = 1.5)
+  facet_grid(layer_name ~ label, scales = "free_y") +
+  
+  scale_color_manual(values = my_cols) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.5),
+    panel.grid.minor = element_line(color = "grey90", linewidth = 0.25),
+    
+    strip.background = element_rect(fill = "grey90", color = "black"),
+    strip.text.x = element_text(face = "bold", size = 10), 
+    strip.text.y = element_text(face = "bold", size = 10, angle = 270), 
+    
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 8, color = "black")
+  ) +
+  labs(
+    title = "Univariate normality: layers vs diagnosis",
+    x = "Theoretical normal quantiles",
+    y = "Sample quantiles (thickness in pixel)"
+  )
+
+# Multivariate normality
+labels=levels(as.factor(retina_df$label)) # there are five diagnosis (4 diseases + healthy)
+for(i in 1:5){ 
+  print(mvn(data = retina_df %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
 }
+# no class can be considered normally distributed
+
+# Box-Cox transform
+lambda = powerTransform(retina_df[,-7])
+
+retina_df_transf=bind_cols(
+  bcPower(retina_df[1], lambda$lambda[1]),
+  bcPower(retina_df[2], lambda$lambda[2]),
+  bcPower(retina_df[3], lambda$lambda[3]),
+  bcPower(retina_df[4], lambda$lambda[4]),
+  bcPower(retina_df[5], lambda$lambda[5]),
+  bcPower(retina_df[6], lambda$lambda[6]),
+  retina_df[,7]
+)
+
+labels_tr=levels(as.factor(retina_df_transf$label))
+for(i in 1:5){
+  print(mvn(data = retina_df_transf %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
+}
+# even after the suggested Box-Cox transform, there is no evidence for each class
+# that data are normally distributed 
+
+
+# Outlier analysis
+# Find outliers based on Mahalanobis distance 
+x_bar = colMeans(retina_df[,-7])
+S = cov(retina_df[,-7])
+d2 = mahalanobis(retina_df[,-7], center = x_bar, cov = S)
+retina_df_outliers = retina_df[which(d2 > qchisq(0.95, df = 6)),]
+
+retina_df_no_outs = retina_df[which(d2 <= qchisq(0.95, df = 6)),]
+for(i in 1:5){ 
+  print(mvn(data = retina_df_no_outs %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
+}
+# even without outliers, there is no evidence for each class 
+# that data are normally distributed 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+`
+
+
+
 
