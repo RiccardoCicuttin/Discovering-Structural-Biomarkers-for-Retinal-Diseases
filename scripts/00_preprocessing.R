@@ -32,14 +32,14 @@ data_MH = read_excel(path, sheet = 4) %>%
   pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>%
   select(-image) %>% mutate(label = "MH")
 
-data_normal = read_excel(path, sheet = 5) %>% 
+data_healthy = read_excel(path, sheet = 5) %>% 
   mutate(mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE)) %>%
   select(mean_value, names, image) %>% 
   pivot_wider(names_from = names, values_from = mean_value, id_cols = last_col()) %>% 
-  select(-image) %>% mutate(label = "normal")
+  select(-image) %>% mutate(label = "Healthy")
 
 # merge into one data set the data sets obtained
-retina_df = bind_rows(data_normal, data_AMD, data_CSR, data_DR, data_MH)
+retina_df = bind_rows(data_healthy, data_AMD, data_CSR, data_DR, data_MH)
 
 # Original names are not self-explicative and presenten spaces in them
 # names(data)[1:6]
@@ -55,12 +55,6 @@ names(retina_df)[na.omit(1:6)] = new_names
 
 # NAs are not present
 sum(is.na(retina_df))==0 #TRUE
-
-
-
-
-
-
 
 
 
