@@ -19,6 +19,7 @@ my_cols = c(
 
 
 # Corrplots
+png("figures/exploratory_data_analysis/corrplot.png", width = 2000, height = 1400, res = 200)
 par(mfrow = c(2,3))
 
 for (m in unique(retina_df$label)) {
@@ -29,6 +30,11 @@ for (m in unique(retina_df$label)) {
   corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
   title(m, line = 3, cex.main = 1.5)
 }
+
+df=subset(retina_df)[,1:6]
+cor_mat =cor(df, use = "pairwise.complete.obs")
+corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
+title("Global", line = 3, cex.main = 1.5)
 
 
 # Modified format for plotting purposes
