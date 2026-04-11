@@ -7,6 +7,7 @@ library(MVN)
 library(car)
 library(mvtnorm)
 library(ggridges)
+library(forcats)
 
 # Personalized colors
 my_cols = c(
@@ -224,12 +225,13 @@ for(i in 1:5){
     theme_minimal(base_size = 14) +
     theme(
       legend.position = "right",
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
       panel.grid.minor = element_blank()
     )
   
 }
 
-#retina_plots_list[[5]]
+#retina_plots_list[[4]]
 
 
 
