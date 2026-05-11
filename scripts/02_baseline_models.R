@@ -259,6 +259,43 @@ contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5),
 
 
 
+## SVM
+fit_svm = function(x, y, folds){
+
+# da capire!
+ nestcv.train(
+  y = y, 
+  x = x,
+  method = "svmRadial",                      # Using Random Forest here
+  #Select your model here (e.g., "rf", "knn", "svmRadial")
+  
+  # Tell the algorithm to use the logLoss to select the best hyperparameters
+  metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
+  
+  tuneLength = 3,                     
+  outer_cv = 5,                       
+  trControl = inner_ctrl
+)
+}
+
+inner_ctrl = trainControl(
+  method = "cv", 
+  number = 5, 
+  classProbs = TRUE,                  # Absolutely required for multiclass metrics
+  summaryFunction = multiClassSummary # THIS IS THE KEY!
+)
+
+#print(nested_multiclass_rf$summary)
+#nested_multiclass_rf$bestTunes
+#nested_multiclass_rf$outer_result
+
+#pred = nested_multiclass_rf$output$predy
+#truth = nested_multiclass_rf$output$testy
+
+#cm = caret::confusionMatrix(pred, truth)
+
+#macro_F1 = mean(cm$byClass[, "F1"], na.rm = TRUE)
+
 
 
 
