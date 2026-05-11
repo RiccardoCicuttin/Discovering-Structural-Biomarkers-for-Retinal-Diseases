@@ -170,6 +170,91 @@ print(nested_multiclass_rf$summary)
 
 labels = as.data.frame(retina_df)$label
 
+#KNN
+library(class)
+
+retina_std_means=scale(retina_df_means[,-7], center= FALSE, scale= TRUE)
+
+k_values <- 1:10
+wcss <- sapply(k_values, function(k) {
+  kmeans(retina_std_means, centers = k, nstart = 20)$tot.withinss
+})
+
+plot(k_values, wcss,  #error plot
+     type = "b",
+     pch = 19,              
+     col = "blue",          
+     xlab = "Cluster (K)", 
+     ylab = "Error (WCSS)",
+     main = "elbow method")
+
+#we select k=5 for the KNN
+
+
+par(mfrow = c(2,3))
+#layer1-2
+x <- seq(min(retina_std_means[,1]), max(retina_std_means[,1]), length=200)
+y <- seq(min(retina_std_means[,2]), max(retina_std_means[,2]), length=200)
+xy<-expand.grid(layer1=x,layer2=y)
+data.knn5 <- knn(train = retina_std_means[,1:2], test = xy, cl = retina_df_means$label, k = 5)
+z <- as.numeric(data.knn5)
+cl <- as.factor(retina_df_means$label)
+plot(retina_std_means[,1:2], main="k-NN with k = 5", xlab='layer1', ylab='layer2', 
+     pch=20, col=my_cols[as.numeric(cl)],
+     cex.main=1.2)
+contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
+        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
+
+#layer2-3
+x <- seq(min(retina_std_means[,2]), max(retina_std_means[,2]), length=200)
+y <- seq(min(retina_std_means[,3]), max(retina_std_means[,3]), length=200)
+xy<-expand.grid(layer2=x,layer3=y)
+data.knn5 <- knn(train = retina_std_means[,2:3], test = xy, cl = retina_df_means$label, k = 5)
+z <- as.numeric(data.knn5)
+cl <- as.factor(retina_df_means$label)
+plot(retina_std_means[,2:3], main="k-NN with k = 5", xlab='layer2', ylab='layer3', 
+     pch=20, col=my_cols[as.numeric(cl)],
+     cex.main=1.2)
+contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
+        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
+
+#layer3-4
+x <- seq(min(retina_std_means[,3]), max(retina_std_means[,3]), length=200)
+y <- seq(min(retina_std_means[,4]), max(retina_std_means[,4]), length=200)
+xy<-expand.grid(layer3=x,layer4=y)
+data.knn5 <- knn(train = retina_std_means[,3:4], test = xy, cl = retina_df_means$label, k = 5)
+z <- as.numeric(data.knn5)
+cl <- as.factor(retina_df_means$label)
+plot(retina_std_means[,3:4], main="k-NN with k = 5", xlab='layer3', ylab='layer4', 
+     pch=20, col=my_cols[as.numeric(cl)],
+     cex.main=1.2)
+contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
+        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
+
+#layer4-5
+x <- seq(min(retina_std_means[,4]), max(retina_std_means[,4]), length=200)
+y <- seq(min(retina_std_means[,5]), max(retina_std_means[,5]), length=200)
+xy<-expand.grid(layer4=x,layer5=y)
+data.knn5 <- knn(train = retina_std_means[,4:5], test = xy, cl = retina_df_means$label, k = 5)
+z <- as.numeric(data.knn5)
+cl <- as.factor(retina_df_means$label)
+plot(retina_std_means[,4:5], main="k-NN with k = 5", xlab='layer4', ylab='layer5', 
+     pch=20, col=my_cols[as.numeric(cl)],
+     cex.main=1.2)
+contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
+        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
+#layer5-6
+x <- seq(min(retina_std_means[,5]), max(retina_std_means[,5]), length=200)
+y <- seq(min(retina_std_means[,6]), max(retina_std_means[,6]), length=200)
+xy<-expand.grid(layer5=x,layer6=y)
+data.knn5 <- knn(train = retina_std_means[,5:6], test = xy, cl = retina_df_means$label, k = 5)
+z <- as.numeric(data.knn5)
+cl <- as.factor(retina_df_means$label)
+plot(retina_std_means[,5:6], main="k-NN with k = 5", xlab='layer5', ylab='layer6', 
+     pch=20, col=my_cols[as.numeric(cl)],
+     cex.main=1.2)
+contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
+        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
 
 
 
