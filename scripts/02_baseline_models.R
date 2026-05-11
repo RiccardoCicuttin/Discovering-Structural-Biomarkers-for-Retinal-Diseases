@@ -2,6 +2,7 @@ library(caret)
 library(nestedcv)
 library(MLmetrics)
 library(glmnet)
+library(pbapply)
 
 # 3 different sets of features
 # saved them in a list for practicality
@@ -86,7 +87,70 @@ inner_ctrl <- trainControl(
 )
 
 #
+fit_svm = function(x, y, folds){
+  grid = expand.grid(C = c(0.005,.01, 0.1, 0.15,0.20,0.25), 
+                          sigma=c(0.0025,0.005,0.01,0.015,0.02,0.025))
+  
+  nestcv.train(
+    y = y, 
+    x = x,
+    method = "svmRadial",                      # Using Random Forest here
+    #Select your model here (e.g., "rf", "knn", "svmRadial")
+    
+    # Tell the algorithm to use the logLoss to select the best hyperparameters
+    metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
+    preProcess = c("center", "scale"), 
+    tuneLength = 3,    
+    tuneGrid=grid,
+    outer_cv = 10,                       
+    trControl = inner_ctrl,
+    outer_folds = folds,
+    n_outer_folds = 10,
+    n_inner_folds = 10,
+    pass_outer_folds = TRUE, 
+    cv.cores = parallel::detectCores(logical = FALSE)
+  )
+}
+
 #
+fit_knn = function(x, y, folds){
+  
+  nestcv.train(
+    y = y, 
+    x = x,
+    method = "knn", 
+    metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
+    preProcess = c("center", "scale"), 
+    tuneLength = 3,                     
+    trControl = inner_ctrl,
+    outer_folds = folds,
+    n_outer_folds = 10,
+    n_inner_folds = 10,
+    tuneGrid = data.frame(k = seq(5, 21, by=2)),
+    pass_outer_folds = TRUE, 
+    cv.cores = parallel::detectCores(logical = FALSE)
+  )
+}
+
+#
+fit_rf = function(x, y, folds){
+  
+  nestcv.train(
+    y = y, 
+    x = x,
+    method = "rf", 
+    metric = "logLoss",               
+    tuneGrid = expand.grid(.mtry = (1:6)), # da riguardare
+    tuneLength = 3,                     
+    trControl = inner_ctrl,
+    outer_folds = folds,
+    n_outer_folds = 10,
+    n_inner_folds = 10,
+    pass_outer_folds = TRUE, 
+    cv.cores = parallel::detectCores(logical = FALSE)
+  )
+}
+
 
 # if one wants to add a model, he just has to write the fit_ function and add the model to this list
 models <- list(
@@ -96,7 +160,7 @@ models <- list(
   knn = fit_knn
 )
 
-models = list(logreg = fit_logreg, rf = fit_rf)
+models = list(rf = fit_rf)
 
 # list where to save the results of each model fitted on a specific dataset
 results = list()
@@ -105,7 +169,7 @@ results = list()
 for (ds_name in names(datasets)) {
   for (mod_name in names(models)) {
     key <- paste(mod_name, ds_name, sep = "_") # key to lookup for results, ex: logreg_means
-    #message("Fitting ", key, " ...")
+    message("Fitting ", key, " ...")
     set.seed(2026) # reproducibility
     fit <- models[[mod_name]](datasets[[ds_name]], y, folds) # models[[mod_name]] selects the correct fit function
     results[[key]] <- list(dataset = ds_name,
