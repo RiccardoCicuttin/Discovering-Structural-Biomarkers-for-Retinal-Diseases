@@ -296,7 +296,93 @@ inner_ctrl = trainControl(
 
 #macro_F1 = mean(cm$byClass[, "F1"], na.rm = TRUE)
 
+###############################################################################
 
+library(randomForest)
+
+# 2. FONDAMENTALE: Assicurati che la colonna 'label' sia letta come categoria (Factor)
+# Se R la legge come testo semplice (character), l'algoritmo potrebbe confondersi.
+retina_df_means$label <- as.factor(retina_df_means$label)
+
+# 3. Lancia il modello a forza bruta ("label ~ ." significa "predici label usando TUTTE le altre colonne")
+modello_rf <- randomForest(label ~ ., 
+                           data = retina_df_means, 
+                           ntree = 500,       # Numero di alberi nella foresta
+                           importance = TRUE) # Diciamo al modello di calcolare l'importanza dei layer
+
+# 4. Guarda i risultati e scopri quali layer sono i più importanti!
+print(modello_rf)
+varImpPlot(modello_rf)
+
+# 1. 80-20 split in training set e validation set
+set.seed(123) # Per rendere il risultato riproducibile
+indice_train <- sample(1:nrow(retina_df_means), 0.8 * nrow(retina_df_means))
+train_set <- retina_df_means[indice_train, ]
+test_set  <- retina_df_means[-indice_train, ]
+
+# 2. Addestramento sul Train Set
+rf_mod <- randomForest(label ~ ., data = train_set, importance = TRUE)
+
+# 3. Visualizzazione PCA (per vedere i cluster 2D)
+pca_res <- prcomp(retina_df_means[, 1:6], scale. = TRUE)
+plot(pca_res$x[,1], pca_res$x[,2], col = as.factor(retina_df_means$label), 
+     pch = 19, xlab = "PC1", ylab = "PC2", main = "Visualizzazione Cluster PCA")
+legend("topright", legend = levels(as.factor(retina_df_means$label)), 
+       col = 1:length(levels(as.factor(retina_df_means$label))), pch = 19)
+
+
+# Installa il pacchetto se non lo hai mai usato:
+# install.packages("caret") 
+
+library(caret)
+
+# 1. Fai le previsioni (stesso passaggio di prima)
+previsioni_test <- predict(rf_mod, newdata = test_set)
+
+# 2. Genera la matrice di confusione e tutte le metriche associate
+confusionMatrix(data = previsioni_test, reference = test_set$label)
+
+# Calcola la somma della diagonale (quelli giusti) diviso il totale
+accuratezza <- sum(diag(matrice_confusione)) / sum(matrice_confusione)
+errore_globale <- 1 - accuratezza
+
+# Stampa il risultato in formato percentuale
+print(paste("Tasso di Errore Globale:", round(errore_globale * 100, 2), "%"))
+
+retina_df_mns_sd$label <- as.factor(retina_df_mns_sd$label)
+
+set.seed(123)
+indice_train_sd <- sample(1:nrow(retina_df_mns_sd), 0.8 * nrow(retina_df_mns_sd))
+train_set_sd <- retina_df_mns_sd[indice_train_sd, ]
+test_set_sd  <- retina_df_mns_sd[-indice_train_sd, ]
+
+rf_mod_sd <- randomForest(label ~ ., data = train_set_sd, importance = TRUE)
+previsioni_test_sd <- predict(rf_mod_sd, newdata = test_set_sd)
+
+confusionMatrix(data = previsioni_test_sd, reference = test_set_sd$label)
+
+matrice_confusione_sd <- table(previsioni_test_sd, test_set_sd$label)
+accuratezza_sd <- sum(diag(matrice_confusione_sd)) / sum(matrice_confusione_sd)
+errore_globale_sd <- 1 - accuratezza_sd
+print(paste("Tasso di Errore Globale (mns_sd):", round(errore_globale_sd * 100, 2), "%"))
+
+
+retina_df_means_transf$label <- as.factor(retina_df_means_transf$label)
+
+set.seed(123)
+indice_train_transf <- sample(1:nrow(retina_df_means_transf), 0.8 * nrow(retina_df_means_transf))
+train_set_transf <- retina_df_means_transf[indice_train_transf, ]
+test_set_transf  <- retina_df_means_transf[-indice_train_transf, ]
+
+rf_mod_transf <- randomForest(label ~ ., data = train_set_transf, importance = TRUE)
+previsioni_test_transf <- predict(rf_mod_transf, newdata = test_set_transf)
+
+confusionMatrix(data = previsioni_test_transf, reference = test_set_transf$label)
+
+matrice_confusione_transf <- table(previsioni_test_transf, test_set_transf$label)
+accuratezza_transf <- sum(diag(matrice_confusione_transf)) / sum(matrice_confusione_transf)
+errore_globale_transf <- 1 - accuratezza_transf
+print(paste("Tasso di Errore Globale (transf):", round(errore_globale_transf * 100, 2), "%"))
 
 
 
