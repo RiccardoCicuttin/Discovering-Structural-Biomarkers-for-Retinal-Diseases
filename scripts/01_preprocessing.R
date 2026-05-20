@@ -106,6 +106,7 @@ names(retina_df)[na.omit(1:12)] = new_names
 # NAs are not present
 sum(is.na(retina_df))==0 #TRUE
 
+
 # Data in original format, with patient ID 
 df_orig = bind_rows(read_excel(path, sheet = 1),
                     read_excel(path, sheet = 2),
@@ -123,10 +124,6 @@ df_orig <- map2_dfr(sheet_indices, labels, function(idx, lbl) {
     ) %>%
     select(-image)
 })
-
-
-# train-test split
-library(caret)
 
 # --- Build a patient-level key table ----
 # One row per patient: just the (label, patient_id) pair.
@@ -158,7 +155,9 @@ test_set  <- retina_df %>% semi_join(test_patients,  by = c("label", "patient_id
 train_orig <- df_orig %>% semi_join(train_patients, by = c("label", "patient_id"))
 test_orig  <- df_orig %>% semi_join(test_patients,  by = c("label", "patient_id"))
 
-# retina_df 
+
+
+
 retina_df_logCV <- retina_df %>%
   mutate(across(
     all_of(paste0("sd_layer", 1:6)),

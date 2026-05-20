@@ -20,7 +20,7 @@ my_cols = c(
 
 retina_df_means = retina_df[, c(1:6, 18)]
 
-# Corrplots
+# Correlation matrices
 png("figures/exploratory_data_analysis/corrplot.png", width = 2000, height = 1400, res = 200)
 par(mfrow = c(2,3))
 
@@ -38,6 +38,51 @@ cor_mat =cor(df, use = "pairwise.complete.obs")
 corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
 title("Global", line = 3, cex.main = 1.5)
 
+# Analysis of correlation matrices based on spd-matrix distances
+library(CovTools)
+library(abind)
+library(ggdendro)
+df_list_by_class = split(retina_df[, 1:17], retina_df$label)
+corr_m_list <- lapply(df_list_by_class, function(df) {
+  as.matrix(cor(df, use = "pairwise.complete.obs"))
+})
+
+mats <- list(Healthy = corr_m_list$Healthy,
+             AMD     = corr_m_list$AMD,
+             CSR     = corr_m_list$CSR,
+             DR      = corr_m_list$DR,
+             MH      = corr_m_list$MH)
+
+D_AI <- CovDist(abind(mats, along = 3), method = "AIRM")   # affine-invariant Riemannian metric
+D_LE <- CovDist(abind(mats, along = 3), method = "LERM")   # log-Euclidean
+
+rownames(D_AI) <- colnames(D_AI) <- names(mats)
+rownames(D_LE) <- colnames(D_LE) <- names(mats)
+
+d_from_healthy_LE <- D_LE["Healthy", ]
+d_from_healthy_LE <- d_from_healthy_LE[names(d_from_healthy_LE) != "Healthy"]
+ranking_LE <- sort(d_from_healthy_LE)
+ranking_LE
+
+d_from_healthy_AI <- D_AI["Healthy", ]
+d_from_healthy_AI <- d_from_healthy_AI[names(d_from_healthy_AI) != "Healthy"]
+ranking_AI <- sort(d_from_healthy_AI)
+ranking_AI
+
+hc <- hclust(as.dist(D_AI), method = "average")
+ggdendrogram(hc, rotate = FALSE) + labs(
+  title = "Hierarchical clustering of classes by covariance structure",
+  x = "", 
+  y = "AIM distance for SPD matrices") + theme_minimal(base_size = 14) + 
+  theme(
+    #panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    plot.title   = element_text(size = 16, face = "bold"),
+    axis.title   = element_text(size = 13),
+    axis.text.x  = element_text(size = 13),   # class names
+    axis.text.y  = element_text(size = 11)
+  )
+
+
 
 # Modified format for plotting purposes
 data_long <- retina_df_means %>%
@@ -46,6 +91,7 @@ data_long <- retina_df_means %>%
                names_to = "layer_name", 
                values_to = "thickness") %>%
   mutate(label = factor(label, levels = names(my_cols)))
+
 
 # Ridgeplots
 ridgeplots = ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
@@ -170,6 +216,11 @@ for(i in 1:5){
 # that data are normally distributed 
 
 
+# PERMANOVA
+library(vegan)
+adonis2(as.matrix(retina_df[,-18])~retina_df$label, permutations = 9999)
+# class membership explains 32.9% of the total multivariate variance
+
 # Outlier analysis
 
 # Find outliers based on Mahalanobis distance 
@@ -186,7 +237,7 @@ for(i in 1:5){
 # that data are normally distributed 
 
 
-# Plots of retinas
+# Plots of average retina profile per class
 retina_plots_list =  vector(mode='list', length=5)
 labels = c("AMD", "CSR", "DR", "MH", "Healthy")
 for(i in 1:5){
@@ -234,9 +285,69 @@ for(i in 1:5){
 #retina_plots_list[[4]]
 
 
+# ingle patient retina plot
+plot_patient_profile <- function(df, class, id) {
+  
+  patient_long <- df %>%
+    filter(label == class, patient_id == id)
+  
+  if (nrow(patient_long) == 0)
+    warning("No rows found for class = '", class, "', patient_id = ", id,
+         ". Check spelling and that patient_id was correctly parsed.")
+  
+  patient_long <- patient_long %>%
+    mutate(names = fct_inorder(names)) %>%
+    select(-label, -patient_id) %>%
+    pivot_longer(
+      cols      = where(is.numeric),
+      names_to  = "Raw_Column",
+      values_to = "Thickness"
+    ) %>%
+    filter(!is.na(Thickness)) %>%
+    group_by(names) %>%
+    mutate(Location = row_number()) %>%
+    ungroup() %>%
+    select(-Raw_Column)
+  
+  # ── Smoothing block: comment out the next 8 lines to plot raw values ──────
+  patient_long <- patient_long %>%
+    group_by(names) %>%
+    mutate(
+      Thickness = tryCatch(
+        predict(loess(Thickness ~ Location, span = 0.25)),
+        error = function(e) {
+          warning("loess failed for layer '", unique(names), "', using raw values. ", e$message)
+          Thickness
+        }
+      )
+    ) %>%
+    ungroup()
+  # ── End smoothing block ───────────────────────────────────────────────────
+  
+  ggplot(patient_long, aes(x = Location, y = Thickness, fill = names)) +
+    geom_area(alpha = 0.85, color = "white", linewidth = 0.2) +
+    scale_fill_viridis_d(option = "turbo") +
+    labs(
+      title    = paste0("Topographical profile: ", class, ", patient ", id),
+      subtitle = "Individual patient, aggregated across sequential spatial locations",
+      x        = "Spatial Location (Sequential Index)",
+      y        = "Cumulative Thickness (pixel)",
+      fill     = "Retinal Layer"
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position  = "right",
+      panel.border     = element_rect(color = "black", fill = NA, linewidth = 0.8),
+      panel.grid.minor = element_blank()
+    )
+}
 
+# Usage
+plot_patient_profile(df_orig, "Healthy", 14)
 
-
+# Check skewness of sd features
+sd_cols <- datasets[["means_sd_ratios"]][, grepl("^sd_", colnames(datasets[["means_sd_ratios"]]))]
+apply(sd_cols, 2, function(x) moments::skewness(x, na.rm = TRUE))
 
 
 
