@@ -3,6 +3,7 @@ library(nestedcv)
 library(MLmetrics)
 library(glmnet)
 library(pbapply)
+library(pheatmap)
 
 # 3 different sets of features
 # saved them in a list for practicality
@@ -10,7 +11,8 @@ datasets = list(
   # nest cv functions require a matrix in input
   means = as.matrix(retina_df_means[, -ncol(retina_df_means)]),
   means_sd = as.matrix(retina_df[, -c(13:18)]),
-  means_sd_ratios = as.matrix(retina_df[, -ncol(retina_df)])
+  means_sd_ratios = as.matrix(retina_df[, -ncol(retina_df)]),
+  means_logcv_ratios = as.matrix(retina_df_logCV[, -ncol(retina_df)])
 )
 
 y = retina_df$label
@@ -36,7 +38,7 @@ nestcv_modeval <- function(obj) {
   
   cm = caret::confusionMatrix(preds, truth)
   
-  # those measures are not of a single model that actually exists
+  # these measures are not of a single model that actually exists
   # they're estimated by pooling 10 procedure instances 
   list(
     predictions = preds,
@@ -44,10 +46,13 @@ nestcv_modeval <- function(obj) {
     confusion_mat = cm,
     metrics = list(
       macro_F1 = mean(cm$byClass[, "F1"], na.rm = TRUE),
+      macro_F1_sd = sd(cm$byClass[, "F1"], na.rm = TRUE),
       per_class_F1 = cm$byClass[, "F1"],
-      balanced_acc = mean(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE)
+      balanced_acc = mean(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE),
+      balanced_acc_sd = sd(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE)
     )
   )
+  # other ones can be computed since the confusion matrix gets saved
 }
 
 # Each model will have a specific function that performs nested cv
@@ -63,6 +68,7 @@ fit_logreg <- function(x, y, folds) {
     y = y, x = x,
     family = "multinomial",
     alphaSet = alphas,
+    standardize = TRUE, 
     outer_folds = folds,
     n_outer_folds = 10,
     n_inner_folds = 10,
@@ -73,37 +79,39 @@ fit_logreg <- function(x, y, folds) {
     # final CV (on the entire dataset, runs once at the end) mirrors the inner CVs 
     # you needs n_outer_folds = n_inner_folds otherwise the metrics you compute from 
     # the nested procedure do not refer to the actual method you used to fit the model
-    # ( nested cv is just a performance assessment)
+    # (nested cv is just a performance assessment)
 }
 
-#
+# Setting object to pass to the caret::train function
+# which is used inside the inner loop of nested cv
 inner_ctrl <- trainControl(
-  method          = "cv",
-  number          = 10,
-  classProbs      = TRUE,
-  summaryFunction = mnLogLoss, #multinomial logLoss
+  method = "cv",
+  number = 10,
+  classProbs = TRUE, # required for logLoss
+  # the model must give P(Y=k|x) for each class
+  summaryFunction = mnLogLoss, # multinomial logLoss
   savePredictions = "final",
   allowParallel = FALSE
 )
 
-#
-fit_svm = function(x, y, folds){
-  grid = expand.grid(C = c(0.005,.01, 0.1, 0.15,0.20,0.25), 
-                          sigma=c(0.0025,0.005,0.01,0.015,0.02,0.025))
+# 2. Support vector machines
+fit_svm <- function(x, y, folds) {
+  
+  # this is a commonly used heuristic to tune svm hyperparameters
+  tg <- expand.grid(
+    C = 2^seq(-3, 7, by = 2),
+    sigma = 2^seq(-5, 1, by = 2)
+    # sigma since caret "svmRadial" uses
+    # K(x, x') = exp( -sigma * ||x - x'||^2 )
+  )
   
   nestcv.train(
-    y = y, 
-    x = x,
-    method = "svmRadial",                      # Using Random Forest here
-    #Select your model here (e.g., "rf", "knn", "svmRadial")
-    
-    # Tell the algorithm to use the logLoss to select the best hyperparameters
-    metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
-    preProcess = c("center", "scale"), 
-    tuneLength = 3,    
-    tuneGrid=grid,
-    outer_cv = 10,                       
+    y = y, x = x,
+    method = "svmRadial",
+    tuneGrid = tg,
     trControl = inner_ctrl,
+    metric = "logLoss",
+    preProcess = c("center", "scale"),
     outer_folds = folds,
     n_outer_folds = 10,
     n_inner_folds = 10,
@@ -112,14 +120,14 @@ fit_svm = function(x, y, folds){
   )
 }
 
-#
+# 3. KNN
 fit_knn = function(x, y, folds){
   
   nestcv.train(
     y = y, 
     x = x,
     method = "knn", 
-    metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
+    metric = "logLoss",             
     preProcess = c("center", "scale"), 
     tuneLength = 3,                     
     trControl = inner_ctrl,
@@ -132,25 +140,32 @@ fit_knn = function(x, y, folds){
   )
 }
 
-#
-fit_rf = function(x, y, folds){
+# 4. Random forest
+fit_rf <- function(x, y, folds) {
+  
+  tg <- expand.grid(
+    # number of randomly selected covariates for each tree
+    mtry = sort(unique(c(2, 4, 6, max(2, floor(sqrt(ncol(x))))))), # sqrt(p) usually the default
+    # splits are chosen to maximize the decrease in Gini impurity
+    splitrule = "gini",
+    # minimum number of observations a node must contain to be eligible for further splitting
+    min.node.size = c(1, 5) # 1 is the default
+  )
   
   nestcv.train(
-    y = y, 
-    x = x,
-    method = "rf", 
-    metric = "logLoss",               
-    tuneGrid = expand.grid(.mtry = (1:6)), # da riguardare
-    tuneLength = 3,                     
+    y = y, x = x,
+    # ranger is a faster alternative to "rf" 
+    method = "ranger", 
+    tuneGrid = tg,
     trControl = inner_ctrl,
-    outer_folds = folds,
+    metric = "logLoss",
+    outer_folds  = folds,
     n_outer_folds = 10,
-    n_inner_folds = 10,
-    pass_outer_folds = TRUE, 
+    num.trees = 500,
+    importance = "impurity",
     cv.cores = parallel::detectCores(logical = FALSE)
   )
 }
-
 
 # if one wants to add a model, he just has to write the fit_ function and add the model to this list
 models <- list(
@@ -160,10 +175,10 @@ models <- list(
   knn = fit_knn
 )
 
-models = list(rf = fit_rf)
-
 # list where to save the results of each model fitted on a specific dataset
 results = list()
+
+class(models[[mod_name]](datasets[[ds_name]], y, folds))
 
 # actual loop for each model on each dataset
 for (ds_name in names(datasets)) {
@@ -184,274 +199,143 @@ for (ds_name in names(datasets)) {
 summary_tbl <- do.call(rbind, lapply(results, function(r) {
   m <- r$eval$metrics
   tibble::tibble(
-    dataset      = r$dataset,
-    model        = r$model,
-    macro_F1     = m$macro_F1,
-    balanced_acc = m$balanced_acc
+    dataset = r$dataset,
+    model = r$model,
+    macro_F1 = m$macro_F1,
+    macro_F1_sd = m$macro_F1_sd,
+    balanced_acc = m$balanced_acc,
+    balanced_acc_sd = m$balanced_acc_sd
+    # other_metric = m$*
   )
 }))
 
-print(summary_tbl)
+#print(summary_tbl)
+
+# order by F1 score
+print(summary_tbl |>
+        dplyr::arrange(dplyr::desc(macro_F1), dplyr::desc(balanced_acc)) |>
+        print(n = Inf))
+
+# check if order is consistent with more features added
+print(summary_tbl |>
+        dplyr::group_by(dataset) |>
+        dplyr::arrange(dplyr::desc(macro_F1), .by_group = TRUE) |>
+        print(n = Inf))
+ 
+# F1 score per class
+perclassF1_tbl <- do.call(rbind, lapply(results, function(r) {
+  f1_vec <- r$eval$metrics$per_class_F1
+  names(f1_vec) <- sub("Class: ", "", names(f1_vec))
+  tibble::tibble(dataset = r$dataset, model = r$model, !!!f1_vec)
+}))
+
+class_order <- c("Healthy", names(ranking_AI))
+perclassF1_tbl <- perclassF1_tbl %>%
+  dplyr::select(dataset, model, all_of(class_order))
+
+print(perclassF1_tbl)
 
 summary_tbl[which.max(summary_tbl$macro_F1) , ]
 
 
+# Analysis of selected model
+logreg_fit<- results[["knn_means_logcv_ratios"]]$fit   
+# note that glment fits the multinomial logistic regression in the "symmetric form"
+# you do not pick a baseline class 
+# you get estimates of coefficients for each class 
 
-# NESTED CROSS VALIDATION
-# (abbiamo pochi dati e iperparametri da trovare)
+# heatmap of coefficents of the penalized logistic regression
+all_features <- colnames(datasets[["means_sd_ratios"]])
 
-# da capire:
-# nei fold va usata una ripartizione proporzionale? come fare? possibile con questa funzione?
-# problema: alcuni fold potrebbero avere quasi solo sani
-# alcuni fold potrebbero non avere pazienti di una qualche classe
+coef_list <- coef(logreg_fit)
 
-# da capire
-inner_ctrl = trainControl(
-  method = "cv", 
-  number = 5, 
-  classProbs = TRUE,                  # Absolutely required for multiclass metrics
-  summaryFunction = multiClassSummary # THIS IS THE KEY!
+coef_matrix <- t(sapply(coef_list, function(ck) {
+  ck <- ck[names(ck) != "(Intercept)"]   # drop intercept
+  out <- setNames(rep(0, length(all_features)), all_features)
+  out[names(ck)] <- ck                   # fill in the non-zero values
+  out
+}))
+
+pheatmap(
+  coef_matrix,
+  # classes are clustered according to the correlation matrix distances
+  cluster_rows    = hc, 
+  cluster_cols    = FALSE,
+  scale           = "none",
+  color           = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
+  breaks          = seq(-max(abs(coef_matrix)), max(abs(coef_matrix)), length.out = 101),
+  border_color    = "grey85",
+  cellwidth       = 44,    
+  cellheight      = 38,
+  fontsize        = 12,
+  fontsize_row    = 13,
+  fontsize_col    = 11,
+  angle_col       = 45,
+  display_numbers = TRUE,
+  number_format   = "%.2f",
+  number_color    = "grey20",
+  main            = "Multinomial logistic regression coefficients",
+  treeheight_row  = 90,
+  margins         = c(80, 10) 
 )
 
-# da capire!
-nested_multiclass_rf <- nestcv.train(
-  y = as.data.frame(retina_df_means)$label, 
-  x = as.data.frame(retina_df_means[,-7]),
-  method = "knn",                      # Using Random Forest here
-  #Select your model here (e.g., "rf", "knn", "svmRadial")
+# confusion matrix
+plot_confusion_matrix <- function(result_entry, title = NULL) {
   
-  # Tell the algorithm to use the Mean F1 to select the best hyperparameters
-  metric = "Mean_F1", # IMPORTANTE USARE QUESTA METRICA              
+  preds <- result_entry$eval$predictions
+  truth <- result_entry$eval$truth
+  cm    <- result_entry$eval$confusion_mat
   
-  tuneLength = 3,                     
-  outer_cv = 5,                       
-  trControl = inner_ctrl
-)
-
-# View the results
-#print(nested_multiclass_rf)
-print(nested_multiclass_rf$summary)
-
-labels = as.data.frame(retina_df)$label
-
-#KNN
-library(class)
-
-retina_std_means=scale(retina_df_means[,-7], center= FALSE, scale= TRUE)
-
-k_values <- 1:10
-wcss <- sapply(k_values, function(k) {
-  kmeans(retina_std_means, centers = k, nstart = 20)$tot.withinss
-})
-
-plot(k_values, wcss,  #error plot
-     type = "b",
-     pch = 19,              
-     col = "blue",          
-     xlab = "Cluster (K)", 
-     ylab = "Error (WCSS)",
-     main = "elbow method")
-
-#we select k=5 for the KNN
-
-
-par(mfrow = c(2,3))
-#layer1-2
-x <- seq(min(retina_std_means[,1]), max(retina_std_means[,1]), length=200)
-y <- seq(min(retina_std_means[,2]), max(retina_std_means[,2]), length=200)
-xy<-expand.grid(layer1=x,layer2=y)
-data.knn5 <- knn(train = retina_std_means[,1:2], test = xy, cl = retina_df_means$label, k = 5)
-z <- as.numeric(data.knn5)
-cl <- as.factor(retina_df_means$label)
-plot(retina_std_means[,1:2], main="k-NN with k = 5", xlab='layer1', ylab='layer2', 
-     pch=20, col=my_cols[as.numeric(cl)],
-     cex.main=1.2)
-contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
-        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
-
-#layer2-3
-x <- seq(min(retina_std_means[,2]), max(retina_std_means[,2]), length=200)
-y <- seq(min(retina_std_means[,3]), max(retina_std_means[,3]), length=200)
-xy<-expand.grid(layer2=x,layer3=y)
-data.knn5 <- knn(train = retina_std_means[,2:3], test = xy, cl = retina_df_means$label, k = 5)
-z <- as.numeric(data.knn5)
-cl <- as.factor(retina_df_means$label)
-plot(retina_std_means[,2:3], main="k-NN with k = 5", xlab='layer2', ylab='layer3', 
-     pch=20, col=my_cols[as.numeric(cl)],
-     cex.main=1.2)
-contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
-        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
-
-#layer3-4
-x <- seq(min(retina_std_means[,3]), max(retina_std_means[,3]), length=200)
-y <- seq(min(retina_std_means[,4]), max(retina_std_means[,4]), length=200)
-xy<-expand.grid(layer3=x,layer4=y)
-data.knn5 <- knn(train = retina_std_means[,3:4], test = xy, cl = retina_df_means$label, k = 5)
-z <- as.numeric(data.knn5)
-cl <- as.factor(retina_df_means$label)
-plot(retina_std_means[,3:4], main="k-NN with k = 5", xlab='layer3', ylab='layer4', 
-     pch=20, col=my_cols[as.numeric(cl)],
-     cex.main=1.2)
-contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
-        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
-
-#layer4-5
-x <- seq(min(retina_std_means[,4]), max(retina_std_means[,4]), length=200)
-y <- seq(min(retina_std_means[,5]), max(retina_std_means[,5]), length=200)
-xy<-expand.grid(layer4=x,layer5=y)
-data.knn5 <- knn(train = retina_std_means[,4:5], test = xy, cl = retina_df_means$label, k = 5)
-z <- as.numeric(data.knn5)
-cl <- as.factor(retina_df_means$label)
-plot(retina_std_means[,4:5], main="k-NN with k = 5", xlab='layer4', ylab='layer5', 
-     pch=20, col=my_cols[as.numeric(cl)],
-     cex.main=1.2)
-contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
-        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
-#layer5-6
-x <- seq(min(retina_std_means[,5]), max(retina_std_means[,5]), length=200)
-y <- seq(min(retina_std_means[,6]), max(retina_std_means[,6]), length=200)
-xy<-expand.grid(layer5=x,layer6=y)
-data.knn5 <- knn(train = retina_std_means[,5:6], test = xy, cl = retina_df_means$label, k = 5)
-z <- as.numeric(data.knn5)
-cl <- as.factor(retina_df_means$label)
-plot(retina_std_means[,5:6], main="k-NN with k = 5", xlab='layer5', ylab='layer6', 
-     pch=20, col=my_cols[as.numeric(cl)],
-     cex.main=1.2)
-contour(x, y, matrix(z, 200), levels=c(1.5, 2.5,3.5, 4.5), 
-        drawlabels=FALSE, add=TRUE, lwd=2, col="black")
-
-
-
-
-## SVM
-fit_svm = function(x, y, folds){
-
-# da capire!
- nestcv.train(
-  y = y, 
-  x = x,
-  method = "svmRadial",                      # Using Random Forest here
-  #Select your model here (e.g., "rf", "knn", "svmRadial")
+  # Auto-generate title from dataset and model name if not supplied
+  if (is.null(title))
+    title <- paste0(toupper(result_entry$model), " — ", result_entry$dataset)
   
-  # Tell the algorithm to use the logLoss to select the best hyperparameters
-  metric = "logLoss", # IMPORTANTE USARE QUESTA METRICA              
+  cm_df <- as.data.frame(cm$table) %>%
+    dplyr::group_by(Reference) %>%
+    dplyr::mutate(
+      pct     = Freq / sum(Freq),
+      pct_lbl = ifelse(Freq > 0,
+                       paste0(Freq, "\n(", scales::percent(pct, accuracy = 1), ")"),
+                       "0")
+    ) %>%
+    dplyr::ungroup()
   
-  tuneLength = 3,                     
-  outer_cv = 5,                       
-  trControl = inner_ctrl
-)
+  ggplot(cm_df, aes(x = Reference, y = Prediction, fill = pct)) +
+    geom_tile(color = "white", linewidth = 0.8) +
+    geom_text(aes(label = pct_lbl), size = 3.8, lineheight = 1.2) +
+    geom_tile(
+      data = dplyr::filter(cm_df, Prediction == Reference),
+      aes(x = Reference, y = Prediction),
+      fill = NA, color = "#2166AC", linewidth = 1.5
+    ) +
+    scale_fill_gradient2(
+      low      = "white",
+      mid      = "#FDDBC7",
+      high     = "#B2182B",
+      midpoint = 0.3,
+      limits   = c(0, 1),
+      labels   = scales::percent,
+      name     = "Row %"
+    ) +
+    labs(
+      title    = title,
+      subtitle = paste0(
+        "Macro F1 = ",      round(result_entry$eval$metrics$macro_F1,     3),
+        "   |   Balanced accuracy = ", round(result_entry$eval$metrics$balanced_acc, 3)
+      ),
+      x = "True class",
+      y = "Predicted class"
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      panel.grid      = element_blank(),
+      axis.text       = element_text(size = 12),
+      plot.title      = element_text(face = "bold", size = 15),
+      plot.subtitle   = element_text(size = 11, color = "grey40"),
+      legend.position = "right"
+    ) +
+    coord_fixed() + scale_y_discrete(limits = rev)
 }
 
-inner_ctrl = trainControl(
-  method = "cv", 
-  number = 5, 
-  classProbs = TRUE,                  # Absolutely required for multiclass metrics
-  summaryFunction = multiClassSummary # THIS IS THE KEY!
-)
-
-#print(nested_multiclass_rf$summary)
-#nested_multiclass_rf$bestTunes
-#nested_multiclass_rf$outer_result
-
-#pred = nested_multiclass_rf$output$predy
-#truth = nested_multiclass_rf$output$testy
-
-#cm = caret::confusionMatrix(pred, truth)
-
-#macro_F1 = mean(cm$byClass[, "F1"], na.rm = TRUE)
-
-###############################################################################
-
-library(randomForest)
-
-# 2. FONDAMENTALE: Assicurati che la colonna 'label' sia letta come categoria (Factor)
-# Se R la legge come testo semplice (character), l'algoritmo potrebbe confondersi.
-retina_df_means$label <- as.factor(retina_df_means$label)
-
-# 3. Lancia il modello a forza bruta ("label ~ ." significa "predici label usando TUTTE le altre colonne")
-modello_rf <- randomForest(label ~ ., 
-                           data = retina_df_means, 
-                           ntree = 500,       # Numero di alberi nella foresta
-                           importance = TRUE) # Diciamo al modello di calcolare l'importanza dei layer
-
-# 4. Guarda i risultati e scopri quali layer sono i più importanti!
-print(modello_rf)
-varImpPlot(modello_rf)
-
-# 1. 80-20 split in training set e validation set
-set.seed(123) # Per rendere il risultato riproducibile
-indice_train <- sample(1:nrow(retina_df_means), 0.8 * nrow(retina_df_means))
-train_set <- retina_df_means[indice_train, ]
-test_set  <- retina_df_means[-indice_train, ]
-
-# 2. Addestramento sul Train Set
-rf_mod <- randomForest(label ~ ., data = train_set, importance = TRUE)
-
-# 3. Visualizzazione PCA (per vedere i cluster 2D)
-pca_res <- prcomp(retina_df_means[, 1:6], scale. = TRUE)
-plot(pca_res$x[,1], pca_res$x[,2], col = as.factor(retina_df_means$label), 
-     pch = 19, xlab = "PC1", ylab = "PC2", main = "Visualizzazione Cluster PCA")
-legend("topright", legend = levels(as.factor(retina_df_means$label)), 
-       col = 1:length(levels(as.factor(retina_df_means$label))), pch = 19)
-
-
-# Installa il pacchetto se non lo hai mai usato:
-# install.packages("caret") 
-
-library(caret)
-
-# 1. Fai le previsioni (stesso passaggio di prima)
-previsioni_test <- predict(rf_mod, newdata = test_set)
-
-# 2. Genera la matrice di confusione e tutte le metriche associate
-confusionMatrix(data = previsioni_test, reference = test_set$label)
-
-# Calcola la somma della diagonale (quelli giusti) diviso il totale
-accuratezza <- sum(diag(matrice_confusione)) / sum(matrice_confusione)
-errore_globale <- 1 - accuratezza
-
-# Stampa il risultato in formato percentuale
-print(paste("Tasso di Errore Globale:", round(errore_globale * 100, 2), "%"))
-
-retina_df_mns_sd$label <- as.factor(retina_df_mns_sd$label)
-
-set.seed(123)
-indice_train_sd <- sample(1:nrow(retina_df_mns_sd), 0.8 * nrow(retina_df_mns_sd))
-train_set_sd <- retina_df_mns_sd[indice_train_sd, ]
-test_set_sd  <- retina_df_mns_sd[-indice_train_sd, ]
-
-rf_mod_sd <- randomForest(label ~ ., data = train_set_sd, importance = TRUE)
-previsioni_test_sd <- predict(rf_mod_sd, newdata = test_set_sd)
-
-confusionMatrix(data = previsioni_test_sd, reference = test_set_sd$label)
-
-matrice_confusione_sd <- table(previsioni_test_sd, test_set_sd$label)
-accuratezza_sd <- sum(diag(matrice_confusione_sd)) / sum(matrice_confusione_sd)
-errore_globale_sd <- 1 - accuratezza_sd
-print(paste("Tasso di Errore Globale (mns_sd):", round(errore_globale_sd * 100, 2), "%"))
-
-
-retina_df_means_transf$label <- as.factor(retina_df_means_transf$label)
-
-set.seed(123)
-indice_train_transf <- sample(1:nrow(retina_df_means_transf), 0.8 * nrow(retina_df_means_transf))
-train_set_transf <- retina_df_means_transf[indice_train_transf, ]
-test_set_transf  <- retina_df_means_transf[-indice_train_transf, ]
-
-rf_mod_transf <- randomForest(label ~ ., data = train_set_transf, importance = TRUE)
-previsioni_test_transf <- predict(rf_mod_transf, newdata = test_set_transf)
-
-confusionMatrix(data = previsioni_test_transf, reference = test_set_transf$label)
-
-matrice_confusione_transf <- table(previsioni_test_transf, test_set_transf$label)
-accuratezza_transf <- sum(diag(matrice_confusione_transf)) / sum(matrice_confusione_transf)
-errore_globale_transf <- 1 - accuratezza_transf
-print(paste("Tasso di Errore Globale (transf):", round(errore_globale_transf * 100, 2), "%"))
-
-
-
-
-
-
-
+plot_confusion_matrix(results[["knn_means_logcv_ratios"]])
 
