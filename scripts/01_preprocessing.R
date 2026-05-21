@@ -1,177 +1,163 @@
-library(readxl)
-library(dplyr) 
-library(tidyr)
-library(purrr)
-library(stringr)
-library(caret)
+source("R/packages.R")
 
-path = "data/PatientsData.xlsx"
+path <- "data/PatientsData.xlsx"
 
-data_AMD = read_excel(path, sheet = 1) %>% 
-  # mean of every row
-  mutate(patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)")),
-         mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE), 
-         sd_val = apply(select(., where(is.numeric)), na.rm=TRUE,1,sd),) %>%
-  # select just the mean and the sd value, the name of the layer, and the image ID
-  select(mean_value, sd_val, names, image, patient_id) %>%
-  # use as observation ID the image ID to change the format
-  pivot_wider(names_from = names, 
-              values_from = c(mean_value, sd_val), 
-              id_cols = c(image, patient_id)) %>%
-  # erase the image ID and add the disease label column
-  select(-image) %>%
-  mutate(
-    ratio_l1l2 = .[[1]] / .[[2]],
-    ratio_l2l3 = .[[2]] / .[[3]],
-    ratio_l3l4 = .[[3]] / .[[4]],
-    ratio_l4l5 = .[[4]] / .[[5]],
-    ratio_l5l6 = .[[5]] / .[[6]]
-  ) %>% mutate(label = "AMD")
-
-data_CSR = read_excel(path, sheet = 2) %>% 
-  mutate(patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)")), 
-         mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE), 
-         sd_val = apply(select(., where(is.numeric)), na.rm=TRUE,1,sd)) %>%
-  select(mean_value, sd_val, names, image, patient_id) %>% 
-  pivot_wider(names_from = names, values_from = c(mean_value, sd_val), id_cols = c(image, patient_id)) %>%
-  select(-image) %>% 
-  mutate(
-    ratio_l1l2 = .[[1]] / .[[2]],
-    ratio_l2l3 = .[[2]] / .[[3]],
-    ratio_l3l4 = .[[3]] / .[[4]],
-    ratio_l4l5 = .[[4]] / .[[5]],
-    ratio_l5l6 = .[[5]] / .[[6]]
-  ) %>% mutate(label = "CSR") 
-
-data_DR = read_excel(path, sheet = 3) %>% 
-  mutate(patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)")),
-         mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE), 
-         sd_val = apply(select(., where(is.numeric)), na.rm=TRUE,1,sd)) %>%
-  select(mean_value, sd_val, names, image, patient_id) %>% 
-  pivot_wider(names_from = names, values_from = c(mean_value, sd_val), id_cols = c(image, patient_id)) %>% 
-  select(-image) %>%
-  mutate(
-    ratio_l1l2 = .[[1]] / .[[2]],
-    ratio_l2l3 = .[[2]] / .[[3]],
-    ratio_l3l4 = .[[3]] / .[[4]],
-    ratio_l4l5 = .[[4]] / .[[5]],
-    ratio_l5l6 = .[[5]] / .[[6]]
-  ) %>% mutate(label = "DR")
-
-data_MH = read_excel(path, sheet = 4) %>% 
-  mutate(patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)")),
-         mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE), 
-         sd_val = apply(select(., where(is.numeric)), na.rm=TRUE,1,sd)) %>%
-  select(mean_value, sd_val, names, image, patient_id) %>% 
-  pivot_wider(names_from = names, values_from = c(mean_value, sd_val), id_cols = c(image, patient_id)) %>%
-  select(-image) %>% 
-  mutate(
-    ratio_l1l2 = .[[1]] / .[[2]],
-    ratio_l2l3 = .[[2]] / .[[3]],
-    ratio_l3l4 = .[[3]] / .[[4]],
-    ratio_l4l5 = .[[4]] / .[[5]],
-    ratio_l5l6 = .[[5]] / .[[6]]
-  ) %>% mutate(label = "MH")
-
-data_healthy = read_excel(path, sheet = 5) %>% 
-  mutate(patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)")),
-         mean_value=rowMeans(select(., where(is.numeric)), na.rm=TRUE), 
-         sd_val = apply(select(., where(is.numeric)), na.rm=TRUE,1,sd)) %>%
-  select(mean_value, sd_val, names, image, patient_id) %>% 
-  pivot_wider(names_from = names, values_from = c(mean_value, sd_val), id_cols = c(image, patient_id)) %>% 
-  select(-image) %>%
-  mutate(
-    ratio_l1l2 = .[[1]] / .[[2]],
-    ratio_l2l3 = .[[2]] / .[[3]],
-    ratio_l3l4 = .[[3]] / .[[4]],
-    ratio_l4l5 = .[[4]] / .[[5]],
-    ratio_l5l6 = .[[5]] / .[[6]]
-  ) %>% mutate(label = "Healthy")
-
-# merge into one data set the data sets obtained
-retina_df = bind_rows(data_healthy, data_AMD, data_CSR, data_DR, data_MH)
-
-# Original names are not self-explicative and presenten spaces in them
-# names(data)[1:6]
-# We saved them using a map, with keys the new names
-# New names are "layer_j" with j=1,..,6. 
-# layer1 is the most internal one
-original_names = colnames(retina_df[,-c(1, 13:18)])
-new_names = c(paste0("layer", 1:6), paste0("sd_layer", 1:6))
-retina_names_map = setNames(original_names, new_names)
-#retina_names_map['layer1']
-
-names(retina_df)[na.omit(1:12)] = new_names
-
-# NAs are not present
-sum(is.na(retina_df))==0 #TRUE
-
-
-# Data in original format, with patient ID 
-df_orig = bind_rows(read_excel(path, sheet = 1),
-                    read_excel(path, sheet = 2),
-                    read_excel(path, sheet = 3),
-                    read_excel(path, sheet = 4),
-                    read_excel(path, sheet = 5))
-sheet_indices <- 1:5
-labels <- c("Healthy", "MH", "DR", "CSR", "AMD")  
-
-df_orig <- map2_dfr(sheet_indices, labels, function(idx, lbl) {
-  read_excel(path, sheet = idx) %>%
+# read raw data
+read_sheet_raw <- function(path, sheet, label) {
+  read_excel(path, sheet = sheet) %>%
     mutate(
-      label      = lbl,
+      label      = label,
       patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)"))
     ) %>%
-    select(-image)
-})
+    select(-image) %>%
+    relocate(patient_id, label, .after = last_col())
+}
 
-# --- Build a patient-level key table ----
-# One row per patient: just the (label, patient_id) pair.
-# This is the unit we stratify on.
-patient_key <- retina_df %>%
-  distinct(label, patient_id)
+df_raw <- map2_dfr(
+  list(1,       2,     3,    4,     5),
+  c("AMD",   "CSR",  "DR", "MH", "Healthy"),
+  ~ read_sheet_raw(path, .x, .y)
+)
 
-# --- Stratified split on the patient keys ----
-# createDataPartition stratifies on 'label', so class proportions
-# are preserved in both splits.  p = 0.75 means ~75 % of patients
-# from each class go to training.
+# Save the mapping from clean names (layer1...layer6) to original names
+layer_order    <- df_raw %>% filter(label == "AMD") %>% pull(names) %>% unique()
+layer_name_map <- setNames(layer_order, paste0("layer", 1:6))
+# layer_name_map["layer1"] 
+saveRDS(layer_name_map, "results/layer_name_map.rds")
+
+# recode the "names" column using the inverted map
+name_recode <- setNames(paste0("layer", 1:6), layer_order)
+df_raw <- df_raw %>%
+  mutate(names = name_recode[names]) 
+
+# each patient is uniquely identified by (label, id)
+patient_key <- df_raw %>% distinct(label, patient_id)
+
+# create partition train - test based on the keys of patients
 set.seed(123)
-train_idx <- createDataPartition(patient_key$label, p = 0.75, list = FALSE)
-
+train_idx      <- createDataPartition(patient_key$label, p = 0.75, list = FALSE)
 train_patients <- patient_key[ train_idx, ]
 test_patients  <- patient_key[-train_idx, ]
 
-# --- Subset the TRANSFORMED (wide) dataset ----
-# semi_join keeps only rows whose (label, patient_id) appears in the
-# right-hand table.  It's an "existence filter": no duplication, no
-# column additions — just a clean subset.
-train_set <- retina_df %>% semi_join(train_patients, by = c("label", "patient_id"))
-test_set  <- retina_df %>% semi_join(test_patients,  by = c("label", "patient_id"))
+df_raw_train <- df_raw %>% semi_join(train_patients, by = c("label", "patient_id"))
+df_raw_test  <- df_raw %>% semi_join(test_patients,  by = c("label", "patient_id"))
 
-# --- Subset the ORIGINAL (long) dataset ----
-# Exactly the same join keys.  Each patient has 6 rows in df_orig
-# (one per layer), and semi_join keeps all 6 for every patient that
-# landed in the corresponding split.
-train_orig <- df_orig %>% semi_join(train_patients, by = c("label", "patient_id"))
-test_orig  <- df_orig %>% semi_join(test_patients,  by = c("label", "patient_id"))
+saveRDS(train_patients, "datasets/train_patients.rds")
+saveRDS(test_patients,  "datasets/test_patients.rds")
+saveRDS(df_raw_train,   "datasets/df_raw_train.rds")
+saveRDS(df_raw_test,    "datasets/df_raw_test.rds")
+saveRDS(df_raw,         "datasets/df_raw.rds")
+
+# compute features from original dataframe
+compute_features <- function(df_split) {
+  
+  spatial_cols <- df_split %>%
+    select(where(is.numeric), -patient_id) %>%
+    colnames()
+  
+  df_summary <- df_split %>%
+    mutate(
+      mean_val = rowMeans(across(all_of(spatial_cols)), na.rm = TRUE),
+      sd_val   = apply(across(all_of(spatial_cols)), 1, sd, na.rm = TRUE)
+    ) %>%
+    select(patient_id, label, names, mean_val, sd_val)
+  
+  # Layer order from the data 
+  layer_order <- df_split %>% pull(names) %>% unique()
+  
+  df_wide <- df_summary %>%
+    pivot_wider(
+      id_cols     = c(patient_id, label),
+      names_from  = names,
+      values_from = c(mean_val, sd_val)
+    ) %>%
+    # Rename from original names to layer1...layer6 / sd_layer1...6
+    rename_with(~ paste0("layer",    1:6), all_of(paste0("mean_val_", layer_order))) %>%
+    rename_with(~ paste0("sd_layer", 1:6), all_of(paste0("sd_val_",   layer_order)))
+  
+  df_wide %>%
+    mutate(
+      ratio_l1l2 = layer1 / layer2,
+      ratio_l2l3 = layer2 / layer3,
+      ratio_l3l4 = layer3 / layer4,
+      ratio_l4l5 = layer4 / layer5,
+      ratio_l5l6 = layer5 / layer6
+    ) 
+    # %>% relocate(patient_id, label, .after = last_col())
+}
+
+train_features <- compute_features(df_raw_train)
+test_features  <- compute_features(df_raw_test)
+
+# sd and mean of each layer are correlated
+# coefficient of variation shares less information
+het_comparison <- map_dfr(1:6, function(k) {
+  mn  <- train_features[[paste0("layer",    k)]]
+  sd  <- train_features[[paste0("sd_layer", k)]]
+  cv  <- sd / mn
+  lcv <- log(cv)
+  
+  tibble(
+    layer          = paste0("layer", k),
+    cor_mean_sd    = cor(mn, sd,  use = "complete.obs"),  
+    cor_mean_CV    = cor(mn, cv,  use = "complete.obs"),  
+    cor_mean_logCV = cor(mn, lcv, use = "complete.obs"),  
+    skew_CV        = skewness(cv,  na.rm = TRUE),         
+    skew_logCV     = skewness(lcv, na.rm = TRUE)      
+  )
+})
+
+print(het_comparison, digits = 3)
+
+add_logCV <- function(df) {
+  for (k in 1:6) {
+    mn <- df[[paste0("layer",    k)]]
+    sd <- df[[paste0("sd_layer", k)]]
+    df[[paste0("logCV_layer", k)]] <- log(sd / mn)
+  }
+  df
+}
+
+train_logCV <- add_logCV(train_features)
+test_logCV  <- add_logCV(test_features)
+
+mean_cols  <- paste0("layer",       1:6)
+sd_cols    <- paste0("sd_layer",    1:6)
+ratio_cols <- paste0("ratio_l",     c("1l2","2l3","3l4","4l5","5l6"))
+logCV_cols <- paste0("logCV_layer", 1:6)
+
+# as_x selects the requested columns from a data frame and returns a plain
+# numeric matrix. 
+# glmnet and nestcv require x to be a numeric matrix
+as_x <- function(df, cols) as.matrix(df[, cols])
+
+train_datasets <- list(
+  means              = as_x(train_features, mean_cols),
+  means_sd           = as_x(train_features, c(mean_cols, sd_cols)),
+  means_sd_ratios    = as_x(train_features, c(mean_cols, sd_cols, ratio_cols)),
+  means_logCV_ratios = as_x(train_logCV,    c(mean_cols, logCV_cols, ratio_cols))
+)
+
+test_datasets <- list(
+  means              = as_x(test_features, mean_cols),
+  means_sd           = as_x(test_features, c(mean_cols, sd_cols)),
+  means_sd_ratios    = as_x(test_features, c(mean_cols, sd_cols, ratio_cols)),
+  means_logCV_ratios = as_x(test_logCV,    c(mean_cols, logCV_cols, ratio_cols))
+)
+
+y_train <- factor(train_features$label)
+y_test  <- factor(test_features$label)
 
 
-
-
-retina_df_logCV <- retina_df %>%
-  mutate(across(
-    all_of(paste0("sd_layer", 1:6)),
-    ~ log(.x / retina_df[[paste0("layer", str_extract(cur_column(), "\\d+"))]]),
-    .names = "logCV_layer{str_extract(.col, '\\\\d+')}"
-  )) %>%
-  select(all_of(paste0("layer", 1:6)),
-         starts_with("logCV_layer"),
-         starts_with("ratio_"),
-         label)
-
-
-
-
+# datasets/ is local only (inserted in .gitignore) 
+saveRDS(train_datasets,      "datasets/train_datasets.rds")
+saveRDS(test_datasets, "datasets/test_datasets.rds")
+saveRDS(y_train,       "datasets/y_train.rds")
+saveRDS(y_test,        "datasets/y_test.rds")
+saveRDS(train_features, "datasets/train_features.rds")
+saveRDS(test_features,  "datasets/test_features.rds")
+saveRDS(train_logCV,    "datasets/train_logCV.rds")
+saveRDS(test_logCV,     "datasets/test_logCV.rds")
 
 
 
