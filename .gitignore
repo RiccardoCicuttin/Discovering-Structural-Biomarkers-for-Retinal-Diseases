@@ -50,3 +50,4 @@ rsconnect/
 
 # Data are not public
 /data
+/datasets
