@@ -26,6 +26,8 @@ models <- list(
 # list where to save the results of each model fitted on a specific dataset
 results = list()
 
+saveRDS(results, "results/baseline_results.rds")
+
 # actual loop for each model on each dataset
 for (ds_name in names(datasets)) {
   for (mod_name in names(models)) {
