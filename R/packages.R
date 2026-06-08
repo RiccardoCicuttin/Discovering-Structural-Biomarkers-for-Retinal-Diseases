@@ -15,6 +15,7 @@ library(car)
 library(mvtnorm)
 library(ggridges)
 library(forcats)
+library(vegan)
 
 library(caret)
 library(nestedcv)
@@ -22,12 +23,23 @@ library(MLmetrics)
 library(glmnet)
 library(pbapply)
 library(pheatmap)
+library(moments) 
 
-# Analysis of correlation matrices based on spd-matrix distances
 library(CovTools)
 library(abind)
 library(ggdendro)
 
-library(vegan)
+library(fda)
+library(MFPCA)
+library(funData)
 
-library(moments) 
+
+
+
+
+
+
+
+
+
+
