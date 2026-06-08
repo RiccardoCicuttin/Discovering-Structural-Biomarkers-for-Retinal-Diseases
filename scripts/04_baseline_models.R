@@ -26,8 +26,6 @@ models <- list(
 # list where to save the results of each model fitted on a specific dataset
 results = list()
 
-saveRDS(results, "results/baseline_results.rds")
-
 # actual loop for each model on each dataset
 for (ds_name in names(datasets)) {
   for (mod_name in names(models)) {
@@ -41,6 +39,8 @@ for (ds_name in names(datasets)) {
                            eval = nestcv_modeval(fit))
   }
 }
+
+saveRDS(results, "results/baseline_results.rds")
 
 # summary of the metrics used for the comparison
 # rbind the results of the second argument 
@@ -65,6 +65,7 @@ summary_tbl[which.max(summary_tbl$macro_F1), ]
 
 
 # Analysis of selected model - penalized logistic regression
+
 logreg_fit<- results[["logreg_means_logcv_ratios"]]$fit   
 # note that glment fits the multinomial logistic regression in the "symmetric form"
 # you do not pick a baseline class 
@@ -108,6 +109,24 @@ pheatmap(
 # confusion matrix
 plot_confusion_matrix(results[["logreg_means_logcv_ratios"]])
 
+#oddsratio
+fit_logreg_best <- results[["logreg_means_logCV_ratios"]]$fit
+final_model <- fit_logreg_best$final_fit
+
+# 3. Estrai i coefficienti usando il lambda ottimale sintonizzato da nestcv
+lambda_opt <- fit_logreg_best$final_param["lambda"]
+coefficients <- coef(final_model, s = lambda_opt)
+
+# 4. Calcola gli Odds Ratio per ogni classe (multinomiale)
+odds_ratios_logreg <- lapply(coefficients, function(class_coef) {
+  coef_matrix <- as.matrix(class_coef)
+  data.frame(
+    Log_Odds = coef_matrix[, 1],
+    Odds_Ratio = exp(coef_matrix[, 1])
+  )
+})
+
+print(odds_ratios_logreg)
 
 
 
