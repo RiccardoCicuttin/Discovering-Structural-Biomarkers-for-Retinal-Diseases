@@ -44,3 +44,40 @@ ggdendrogram(hc, rotate = FALSE) + labs(
 
 class_ord_from_healthy <- c("Healthy", names(ranking_AI))
 saveRDS(class_ord_from_healthy, "results/class_ord_from_healthy.rds")
+
+
+#patient specific correlation between layers
+y_train<-readRDS("datasets/y_train.rds")
+df_raw_train<-readRDS("datasets/df_raw_train.rds")
+matr=matrix(0,nrow=265,ncol=15)
+j=1
+for(i in seq(1,1590,by=6)){
+  df = subset(df_raw_train[i:(i+5),1:880])
+  df = t(df)
+  df_num=na.omit(df)
+  cor_mat = cor(df_num)
+  val_sup=t(cor_mat)[lower.tri(t(cor_mat),diag=FALSE)]
+  matr[j,]=val_sup
+  j=j+1
+}
+
+v=c("L1-2","L1-3","L1-4","L1-5","L1-6","L2-3","L2-4","L2-5","L2-6","L3-4","L3-5","L3-6","L4-5","L4-6","L5-6")
+cor_pat_spec_train=as.data.frame(matr)
+
+colnames(cor_pat_spec_train)=v
+train_datasets=readRDS("datasets/train_datasets.rds")
+as_x <- function(df, cols) as.matrix(df[, cols])
+train_datasets[["corr_pat_spec"]] <- as_x(cor_pat_spec_train)
+class(cor_pat_spec_train)
+train_datasets <- saveRDS(train_datasets , "datasets/train_datasets.rds")
+
+boxplot(cor_pat_spec)
+
+hclust.s=hclust(dist(cor_pat_spec),method="single")
+hclust.a=hclust(dist(cor_pat_spec),method="average")
+hclust.c=hclust(dist(cor_pat_spec,method="manhattan"),method="complete")
+
+plot(hclust.c,hang=-0.1,xlab='',labels=F,cex=0.6,sub='')
+
+cluster.c=cutree(hclust.c,k=3)
+plot(cor_pat_spec,col=cluster.c + 1L, pch=19)
