@@ -6,9 +6,9 @@ library(stringr)
 library(caret)
 
 library(ggplot2)
+library(tidyverse)
 library(GGally)
 library(patchwork)
-library(dplyr)
 library(corrplot)
 library(MVN)
 library(car)
@@ -28,11 +28,16 @@ library(moments)
 library(CovTools)
 library(abind)
 library(ggdendro)
+library(RiemBase)      
+library(cluster)       
+library(dendextend)  
 
 library(fda)
 library(MFPCA)
 library(funData)
+library(fda.usc)
 
+library(nnet)
 
 
 

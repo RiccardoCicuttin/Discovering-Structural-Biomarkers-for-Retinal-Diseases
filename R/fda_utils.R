@@ -1,9 +1,13 @@
 source("R/packages.R")
 
 smooth_patient_single_lam <- function(patient_lyr, k, lam, basis){
+  
+  # basis has to be chosen outside the function
+  
   meta_cols <- c("names", "patient_id", "label")
   qual <- patient_lyr[, meta_cols]
   
+  # the sampling grid is different among patients of different classes
   num_cols <- setdiff(colnames(patient_lyr), meta_cols)
   y <- as.numeric(patient_lyr[, num_cols])
   y <- y[!is.na(y)]
@@ -24,6 +28,7 @@ smooth_patient_single_lam <- function(patient_lyr, k, lam, basis){
 }
 
 gcv_patient_one_lyr <- function(patient_lyr, k, lambdas, basis){
+  
   meta_cols <- c("names", "patient_id", "label")
   qual <- patient_lyr[, meta_cols]
   
@@ -34,6 +39,7 @@ gcv_patient_one_lyr <- function(patient_lyr, k, lambdas, basis){
   m <- length(y)
   t_grid <- seq(0, 1, length.out = m)
   
+  # find the gcv associated to each smoothing parameter lambda 
   gcvs <- sapply(lambdas, function(lam){
     fdpar <- fdPar(basis, Lfdobj = 2, lambda = lam)
     smth <- smooth.basis(t_grid, y, fdpar)
@@ -49,11 +55,16 @@ smooth_layer <- function(layer_df, k, lambdas, basis){
     gcv_patient_one_lyr(layer_df[i, , drop = FALSE], k, lambdas, basis)
   })
   
+  # build the gcvs dataframe: 
+  # each row is a patient
+  # each column is the gcv associated to a certain lambda
   gcvs_df <- do.call(rbind, gcvs_list)
   gcvs_means = colMeans(gcvs_df)
   
+  # lambda optimum is chosen as the one with the minimum mean
   lam_opt = lambdas[which.min(gcvs_means)]
   
+  # then smooth with this chosen lambda
   results <- lapply(seq_len(nrow(layer_df)), function(i) {
     smooth_patient_single_lam(layer_df[i, , drop = FALSE], k, lam_opt, basis)
   })
@@ -86,6 +97,8 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
     ungroup() %>%
     dplyr::select(-Raw_Column)
   
+  # smoothing happens inside the plot function
+  # lambda can be chosen from the one found with smooth_layer
   smooth_one <- function(y) {
     m      <- length(y)
     t_grid <- seq(0, 1, length.out = m)
@@ -139,13 +152,6 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
   
   p
 }
-
-
-#mfpca
-fit_mfpca <- function(fd_df, M){
-  
-}
-
 
 
 
