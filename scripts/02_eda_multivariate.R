@@ -13,6 +13,8 @@ my_cols = c(
 
 retina_train_means = readRDS("datasets/train_features.rds")[2:8] %>% relocate(label, .after = last_col())
 
+
+# ------------------------------------------------------------------------------
 # Correlation matrices
 # png("figures/exploratory_data_analysis/corrplot.png", width = 2000, height = 1400, res = 200)
 par(mfrow = c(2,3))
@@ -32,6 +34,7 @@ corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col =
 title("Global", line = 3, cex.main = 1.5)
 
 
+# ------------------------------------------------------------------------------
 # Modified format for plotting purposes
 data_long <- retina_train_means %>%
   select(label, starts_with("layer")) %>%
@@ -40,6 +43,8 @@ data_long <- retina_train_means %>%
                values_to = "thickness") %>%
   mutate(label = factor(label, levels = names(my_cols)))
 
+
+# ------------------------------------------------------------------------------
 # Ridgeplots
 ridgeplots = ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
   geom_density_ridges(
@@ -54,7 +59,7 @@ ridgeplots = ggplot(data_long, aes(x = thickness, y = label, fill = label)) +
   ) +
   facet_wrap(~ layer_name, scales = "free_x") + 
   #scale_fill_brewer(palette = "my_cols") +
-  scale_fill_manual(values = my_cols) +
+  scale_fill_manual( values = my_cols) +
   theme_minimal() + 
   theme(
     legend.position = "none",
@@ -76,6 +81,7 @@ ggsave("figures/exploratory_data_analysis/ridgeplots.png", plot = ridgeplots, wi
       units = "in", dpi = 300)
 
 
+# ------------------------------------------------------------------------------
 # Boxplots
 boxplots = ggplot(data_long, aes(x = label, y = thickness, fill = label)) +
   geom_boxplot(color = "black", outlier.shape = NULL, outlier.fill = "white", 
@@ -100,6 +106,7 @@ ggsave("figures/exploratory_data_analysis/boxplots.png", plot = boxplots, width 
        units = "in", dpi = 300)
 
 
+# ------------------------------------------------------------------------------
 # Testing normality
 
 # Univariate normality (qqplots)
@@ -138,6 +145,7 @@ ggsave("figures/exploratory_data_analysis/qqplots.png", plot = qqplots, width = 
        units = "in", dpi = 300)
 
 
+# ------------------------------------------------------------------------------
 # Multivariate normality
 labels=levels(as.factor(retina_train_means$label)) # there are five diagnosis (4 diseases + healthy)
 for(i in 1:5){ 
@@ -166,11 +174,13 @@ for(i in 1:5){
 # that data are normally distributed 
 
 
+# ------------------------------------------------------------------------------
 # PERMANOVA
 adonis2(as.matrix(retina_train_means)~retina_train_means$label, permutations = 9999)
 # class membership explains 32.9% of the total multivariate variance
 
 
+# ------------------------------------------------------------------------------
 # Outlier analysis
 
 # Find outliers based on Mahalanobis distance 
@@ -187,6 +197,7 @@ for(i in 1:5){
 # that data are normally distributed 
 
 
+# ------------------------------------------------------------------------------
 # Plots of average retina profile per class
 retina_plots_list =  vector(mode='list', length=5)
 labels = c("AMD", "CSR", "DR", "MH", "Healthy")
