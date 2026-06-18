@@ -9,6 +9,8 @@ my_cols = c(
   "Healthy" = "dodgerblue"
 )
 
+
+# ------------------------------------------------------------------------------
 # Representation of each layer colored by class
 # For each layer, for each patient, evaluate the fd on a common grid
 # and store (layer, patient_id, label, t, value) for ggplot.
@@ -32,7 +34,7 @@ curves_long <- do.call(rbind, lapply(1:6, function(lyr_idx) {
   }))
 }))
 
-curves_long %>%
+layers_smooth_plot <- curves_long %>%
   ggplot(aes(x = t, y = value, color = label, group = interaction(label, id))) +
   geom_line(alpha = 0.4, linewidth = 0.6) +    # was 0.3
   facet_wrap(~ layer, ncol = 3, scales = "free_y") +
@@ -53,13 +55,18 @@ curves_long %>%
     y     = "Thickness (pixels)",
     color = "Diagnosis"
   )
+layers_smooth_plot
 
+ggsave("figures/functional_data_analysis/layers_smooth_plot.png", plot = layers_smooth_plot, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
-# Plot single layer profile
-plot_patient_profile(df_raw_train, "CSR", 50, 100, basis, 1e-04, show_points = T)
+# ------------------------------------------------------------------------------
+ # Plot single layer profile
+plot_patient_profile(df_raw_train, "Healthy", 11, 100, basis, 1e-04, show_points = F)
 # csr 50
 
 
+# ------------------------------------------------------------------------------
 # Plot the eigenfunctions
 n_pc  <- 8
 #cum_ve[8] : 0.87
@@ -79,7 +86,7 @@ eig_long <- do.call(rbind, lapply(1:n_pc, function(k) {
 eig_long$psi_idx <- factor(eig_long$psi_idx, levels = paste0("psi[", 1:n_pc, "]"))
 eig_long$layer   <- factor(eig_long$layer,   levels = paste0("layer", 1:n_lyr))
 
-ggplot(eig_long, aes(x = t, y = value, color = layer)) +
+mfpca_fun_plot <- ggplot(eig_long, aes(x = t, y = value, color = layer)) +
   geom_hline(yintercept = 0, color = "grey60", linewidth = 0.4) +
   geom_line(linewidth = 1.1) +
   facet_wrap(~ psi_idx, ncol = 4, labeller = label_parsed) +
@@ -100,8 +107,12 @@ ggplot(eig_long, aes(x = t, y = value, color = layer)) +
     legend.position  = "bottom",
     panel.grid.minor = element_blank()
   )
+mfpca_fun_plot
 
+ggsave("figures/functional_data_analysis/mfpca_fun_plot.png", plot = mfpca_fun_plot, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
+# ------------------------------------------------------------------------------
 # Boxplot of first 8 mfpcas scores by class
 n_pc <- 8
 
@@ -114,7 +125,7 @@ scores_long <- mfpca_features %>%
   ) %>%
   dplyr::mutate(pc = factor(pc, levels = paste0("MFPC", 1:n_pc)))
 
-ggplot(scores_long, aes(x = label, y = score, fill = label)) +
+mfpca_scores_boxplot <- ggplot(scores_long, aes(x = label, y = score, fill = label)) +
   geom_boxplot(color = "black", outlier.shape = NULL, outlier.fill = "white",
                outlier.size = 1.5, median.linewidth = 0.6) +
   facet_wrap(~ pc, ncol = 4, scales = "free_y") +
@@ -132,8 +143,13 @@ ggplot(scores_long, aes(x = label, y = score, fill = label)) +
     x     = "Diagnosis",
     y     = "Score"
   )
+mfpca_scores_boxplot
+
+ggsave("figures/functional_data_analysis/mfpca_scores_boxplot.png", plot = mfpca_scores_boxplot, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
 
+# ------------------------------------------------------------------------------
 # Plot mean and variance functions per class
 classes <- levels(factor(patient_meta$label))
 t_grid  <- fd_layers[[1]]@argvals[[1]]
@@ -207,14 +223,20 @@ p_vars <- ggplot(var_long, aes(x = t, y = value, color = class)) +
 p_means
 p_vars
 
+ggsave("figures/functional_data_analysis/mean_funs.png", plot = p_means, width = 8, height = 6, 
+       units = "in", dpi = 300)
+ggsave("figures/functional_data_analysis/var_funs.png", plot = p_vars, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
-# Perturbation
-n_pc <- 4
-# if I move the population mean in the direction of
+
+# ------------------------------------------------------------------------------
+# Perturbation: what happens if I move the population mean in the direction of
 # psi_k by the average amount class j moves
+n_pc <- 4
 
 # Population mean function per layer (across all training patients)
-mu_mat <- t(sapply(fd_layers, function(fl) meanFunction(fl)@X[1, ]))   # 6 × 750
+# 6 × 750 matrix
+mu_mat <- t(sapply(fd_layers, function(fl) meanFunction(fl)@X[1, ]))   
 
 # Class-mean MFPCA scores: average score per (class, PC)
 class_mean_scores <- mfpca_features %>%
@@ -247,8 +269,7 @@ perturb_long <- do.call(rbind, lapply(1:n_pc, function(k) {
 perturb_long$pc    <- factor(perturb_long$pc, levels = paste0("psi[", 1:n_pc, "]"))
 perturb_long$layer <- factor(perturb_long$layer, levels = paste0("layer", 1:6))
 
-
-ggplot(perturb_long, aes(x = t, y = value, color = class)) +
+mfpca_lyr_perturbations <- ggplot(perturb_long, aes(x = t, y = value, color = class)) +
   geom_line(linewidth = 0.8) +
   facet_grid(pc ~ layer, scales = "free_y", labeller = labeller(pc = label_parsed)) +
   scale_color_manual(values = my_cols) +
@@ -269,7 +290,10 @@ ggplot(perturb_long, aes(x = t, y = value, color = class)) +
     panel.grid.minor = element_blank()
   )
 
+mfpca_lyr_perturbations
 
+ggsave("figures/functional_data_analysis/mfpca_lyr_perturbations.png", plot = mfpca_lyr_perturbations, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
 
 
