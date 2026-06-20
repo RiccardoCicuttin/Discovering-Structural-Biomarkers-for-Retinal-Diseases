@@ -1,4 +1,4 @@
-# # Discovering Structural Biomarkers for Retinal Diseases
+# Discovering Structural Biomarkers for Retinal Diseases
 
 ## Repository structure
 ```text
@@ -73,12 +73,16 @@ The selected smoothing parameters per layer are stored in
 ```r
 sapply(df_smooth_by_lyr, function(layer) layer$lambda_opt)
 ```
+The following are the reconstructions of the OCT scans previously reported.
 
-![Smoothed retina 1](figures/smoothed_retina_1.png)
-*Cap1 *
+<p align="center">
+  <img src="figures/functional_data_analysis/smooth_healthy5.png" alt="healthy5" width="750">
+</p> 
 
-![Smoothed retina 2](figures/smoothed_retina_2.png)
-*Cap2 *
+<p align="center">
+  <img src="figures/functional_data_analysis/smooth_AMD12.png" alt="AMD5" width="750">
+</p> 
+
 
 ### Mean functions per class
 
@@ -91,7 +95,9 @@ $$
 
 the average thickness profile over all patients of class $i$ in layer $\ell$.
 
-![Mean functions per class](figures/functional_data_analysis/mean_funs.png)
+<p align="center">
+  <img src="figures/functional_data_analysis/mean_funs.png" alt="mean functions per class" width="750">
+</p> 
 
 ### Variance functions per class
 
@@ -105,7 +111,10 @@ the within-class variability of thickness at each retinal position. Inflated
 variance functions indicate diseases with heterogeneous structural
 presentation.
 
-![Variance functions per class](figures/functional_data_analysis/var_funs.png)
+<p align="center">
+  <img src="figures/functional_data_analysis/var_funs.png" alt="variance functions per class" width="750">
+</p> 
+
 
 
 ### Multivariate Functional PCA (MFPCA)
@@ -156,15 +165,19 @@ The 8 first multivariate eigenfunctions $\psi_k^{(\ell)}(t)$ account for 88% of 
 Each eigenfunction is the joint spatial pattern across the six layers that
 captures the $k$-th largest mode of patient-to-patient variation.
 
-![MFPCA eigenfunctions](figures/functional_data_analysis/mfpca_fun_plot.png)
+<p align="center">
+  <img src="figures/functional_data_analysis/mfpca_fun_plot.png" alt="mfpca funs" width="750">
+</p> 
 
 The following are perturbation plots: the mean function $\mu^{(\ell)}(t)$ is perturbed by
 $+ \bar{\xi}_{ij} \cdot \psi_k^{(\ell)}(t)$, visualizing how a positive or negative score
 along component $k$ reshapes the six-layer profile relative to the mean.
 
-![MFPCA perturbations](figures/functional_data_analysis/mfpca_lyr_perturbations.png)
+<p align="center">
+  <img src="figures/functional_data_analysis/mfpca_lyr_perturbations.png" alt="mfpca perturbations" width="750">
+</p> 
 
-We can clearly see that only for the layer5 component of the first component there is a significant difference among classes. 
+We can clearly see that only for the layer5 component of the first principal component there is a significant difference among classes. 
 
 ### Functional separation analysis
 
