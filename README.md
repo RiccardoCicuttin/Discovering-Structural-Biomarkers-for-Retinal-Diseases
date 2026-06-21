@@ -66,6 +66,9 @@ Furthermore, by applying supervised learning algorithms (such as Random Forests)
 
 ## Multivariate exploratory data analysis
 
+### Dataset Architecture & Feature Engineering
+
+
 Focusing on the mean thickness per layer of every patient, our first exploratory analysis has shown distributional differences between groups.
 
 For an initial overview we recovered the correlation matrices between layer for each class observing the differences between healthy patients and diseases. The retinal structure is modified not only in terms of thickness but also in terms of relations between layers.
