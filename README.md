@@ -67,8 +67,22 @@ Furthermore, by applying supervised learning algorithms (such as Random Forests)
 ## Multivariate exploratory data analysis
 
 ### Dataset Architecture & Feature Engineering
+To transform the 878 raw spatial points of each retinal layer into optimized inputs for supervised machine learning models, we extract specific structural metrics from the 1D profiles:
+* **Mean Layer Thickness (`layer1` to `layer6`):** Captures the global thickness of each layer for an individual patient by averaging their measurements
+* **Standard Deviation (`sd_layer1` to `sd_layer6`):** Captures the spatial variability and roughness within each layer.
+* **Layer Ratios (`ratio_l1l2` to `ratio_l5l6`):** The ratio of thickness between adjacent layers to capture spatial dependencies.
+* **Log Coefficient of Variation (`logCV_layer1` to `logCV_layer6`):** Computed as $\log(\text{SD}/\text{Mean})$.
 
+These engineered metrics are compiled into four distinct matrix configurations:
+* `means`
+* `means_sd`
+* `means_sd_ratios`
+* `means_logCV_ratios`
 
+In addition to the macro-structural features, we engineered another feature dataset named `cor_pat_spec`. 
+By calculating the correlations for all 6 layers, we unroll the upper triangle of the resulting $6 \times 6$ matrix into a 15-dimensional feature vector ($L1\text{-}2, L1\text{-}3, \dots, L5\text{-}6$). 
+
+### Structural Covariance Analysis
 Focusing on the mean thickness per layer of every patient, our first exploratory analysis has shown distributional differences between groups.
 
 For an initial overview we recovered the correlation matrices between layer for each class observing the differences between healthy patients and diseases. The retinal structure is modified not only in terms of thickness but also in terms of relations between layers.
@@ -79,9 +93,11 @@ For an initial overview we recovered the correlation matrices between layer for 
 
 Going into detail, the interdependence between layers 2 and 3 is explained by their shared membership in the ganglion cell complex (GCC), while the correlation between layer 4 and 5 is not mainly related to a biological meaning but it is present in all disease classes. The AMD matrix stands out because a change in one layer induces a change in the same direction in all the other layers.
 
-To compute how far each pathology deviates from the Healthy baseline we calculated two different Riemannian distances: Affine-Invariant Riemannian Metric (AIRM) and Log-Euclidean Riemannian Metric (LERM). 
+To compute how far each pathology deviates from the Healthy baseline we calculated two different Riemannian distances: **Affine-Invariant Riemannian Metric** (AIRM) and **Log-Euclidean Riemannian Metric** (LERM). 
 The first measures the shortest path between two covariance matrices along the true curved space, while the second takes the matrix logarithm of the covariance matrices and then computes the standard Euclidean distance. 
-Both have resulted in the following ordering: MH, CSR, DR, AMD (MH being the less distant from the Healthy).
+Both have resulted in the following ordering: 
+
+$$\text{MH (Closest)} \longrightarrow \text{CSR} \longrightarrow \text{DR} \longrightarrow \text{AMD (Furthest)}$$
 
 ## Classification models
 
