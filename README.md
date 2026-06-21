@@ -36,6 +36,31 @@ discovering-structural-biomarkers-for-retinal-diseases/
 
 ## Dataset presentation
 
+To evaluate whether different retinal diseases exhibit distinct structural patterns and to identify potential morphological biomarkers, this project utilizes a high-resolution dataset of retinal thickness measurements. The data is derived from Optical Coherence Tomography (OCT) scans, a non-invasive imaging technique that provides detailed cross-sectional views of the retina.
+
+### Dataset architecture
+
+The dataset is highly structured to capture both the global anatomy and the localized topological features of the eye. For each patient in the study, the retina has been segmented into 6 distinct structural layers:
+
+- ilm - nflgcl (Inner Limiting Membrane to Nerve Fiber / Ganglion Cell Layer)
+- nflgcl - iplinl
+- iplinl - inlopl
+- inlopl - oplonl
+- oplonl - isos
+- isos - rpe (Inner/Outer Segment junction to Retinal Pigment Epithelium)
+
+For each of these 6 layers, the dataset records the discrete thickness measured at 878 localized points along a horizontal cross-sectional axis. This translates to an extremely granular 1D functional profile for each layer, allowing us to investigate whether pathological deformations occur globally across the entire retina or are confined to highly localized areas.
+
+The dataset comprises a total of 351 individuals, categorized into one healthy control group and four distinct pathological classes:
+Healthy: Control subjects with no retinal structural anomalies.
+AMD (Age-related Macular Degeneration): A disease typically affecting the central vision area (macula).
+CSR (Central Serous Retinopathy): Characterized by fluid accumulation under the retina.
+DR (Diabetic Retinopathy): A complication of diabetes affecting the blood vessels of the retina.
+MH (Macular Hole): A small break in the macula, causing blurred or distorted central vision.
+The architecture of this dataset perfectly aligns with the project's core objectives. By having 6 parallel functional profiles per patient, we are not limited to analyzing layers in isolation. Instead, we can extract patient-specific covariance structures—measuring how the thickness of one layer correlates with another—and map them into specific geometric spaces (e.g., using Symmetric Positive Definite matrices and Riemannian distances).
+
+Furthermore, by applying supervised learning algorithms (such as Random Forests) and Functional Data Analysis (FDA) over these 878 points, we aim to isolate the specific layers, spatial regions, and structural correlations that act as the strongest biomarkers. Identifying these precise structural signatures can ultimately serve as a powerful proxy for automated medical classification and early diagnosis.
+
 ## Analysis outline 
 
 ## Multivariate exploratory data analysis
