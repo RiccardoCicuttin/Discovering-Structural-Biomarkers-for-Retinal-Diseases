@@ -100,6 +100,52 @@ Both have resulted in the following ordering:
 $$\text{MH (Closest)} \longrightarrow \text{CSR} \longrightarrow \text{DR} \longrightarrow \text{AMD (Furthest)}$$
 
 ## Classification models
+Four models were selected to tackle the classification problem, but before implementing them, we divided the aforementioned datasets into training and test sets (75-25%). The chosen models are: penalized multinomial logistic regression, random forest, k-nearest neighbors (KNN), support vector machine with a radial basis function kernel (SVM-RBF), where the first two are supervised and the others are unsupervised.
+
+Since these methods require hyperparameters, we used **Nested Cross-Validation** with 10 folds. In fact, unlike standard cross-validation, Nested CV separates hyperparameter optimization from final performance estimation using a two-loop architecture: an inner loop performs a random search to find the absolute best hyperparameters for the model, while an outer loop evaluates how well that optimized model generalizes to entirely unseen data splits. By doing so, we obtain a highly realistic measure of how the model will perform on future production data. 
+
+Performances of our models were assessed on the basis of the evaluation metrics **Macro-F1**, which treats every class with equal weight, and **balanced accuracy**, specific for imbalanced datasets. Results have shown that the penalized multinomial logistic regression and random forest are the best choices in terms of classification. 
+
+### Log-Odds
+To better interpret the coefficients of a multinomial logistic regression, the probability $P(Y_i = k)$ that a given sample $i$ belongs to a disease class $k$ (where $k \in\{\text{AMD, CSR, DR, MH}\}$) relative to the reference base class $\text{Healthy}\$, is modeled using the log-odds (or logit) transformation:
+
+$$\ln\left( \frac{P(Y_i = k)}{P(Y_i = \text{Healthy})} \right) = \beta_{k,0} + \beta_{k,1}x_{i,1} + \beta_{k,2}x_{i,2} + \dots + \beta_{k,p}x_{i,p}$$
+
+Where:
+* **$x_{i,j}$** represents the value of the $j$-th feature (standardized by its Standard Deviation) for patient $i$.
+* **$\beta_{k,j}$** represents the standardized coefficient for feature $j$ within disease class $k$. 
+* An exponentiated coefficient ($e^{\beta_{k,j}}$) yields the **Odds Ratio (OR)**. A positive coefficient ($\beta > 0$) means an increase in that feature raises the likelihood of that specific disease occurring relative to the healthy baseline.
+
+<p align="center">
+  <img src="figures/classification/coefs_logreg.png" width="750">
+</p> 
+
+<p align="center">
+  <img src="figures/classification/log_odds.png" width="750">
+</p> 
+
+
+Our regularized model successfully introduced sparsity (setting irrelevant feature weights to exactly `0.00`) to highlight clean, interpretable diagnostic targets:
+
+* Structural alterations in the deeper retinal layers act as the primary discriminative signatures. Specifically, an increase in **`layer5` thickness** yields an exceptionally strong positive effect across all conditions, spiking highest for **CSR** ($\beta = 3.95$).
+* Higher local variance in the innermost layer (**`logCV_layer6`**) drastically drives up the log-odds of a patient presenting with **AMD** ($\beta = 3.24$) and **CSR** ($\beta = 2.40$).
+* While most diseases heavily rely on deep-layer characteristics, **Diabetic Retinopathy (DR)** shows a highly localized, unique structural thickening effect in **`layer4`** ($\beta = 1.17$) that remains largely unexploited by the other pathologies.
+
+### Random Forest Analysis
+To identify which anatomical structures carry the highest diagnostic value, we evaluated the features using the **Gini importance index**. This analysis ranks the scalar metrics based on how cleanly they split the data across the different eye conditions, in fact a higher value means the feature is more critical to the model's decision-making process.
+
+<p align="center">
+  <img src="figures/classification/rf_var_importance.png" width="750">
+</p> 
+
+Our feature importance profile reveals a highly localized anatomical story:
+
+* **The Inner Retinal Layers Dominate:** The top four most critical features (**`logCV_layer6`**, **`ratio_l5l6`**, **`layer5`**, and **`layer6`**) all belong to the innermost layers of the retina. This strongly indicates that the pathological changes across these conditions are heavily concentrated in the internal macular anatomy.
+* **Variability Outperforms Absolute Thickness:** Local thickness instability in the deep internal tissue (**`logCV_layer6`**) achieved the maximum relative importance score of **100**, significantly outperforming raw layer thickness alone (`layer6` scored ~45). This proves that the structural irregularity or roughness of the inner layer tissue is a far more sensitive biomarker than absolute thinning or thickening.
+* **Value in Inter-Layer Ratios:** The high ranking of **`ratio_l5l6`** (~66) demonstrates that tracking the relative geometric relationship *between* adjacent inner layers provides powerful, non-redundant contextual information to the classifier.
+* **External Layer Uniformity:** There is a sharp performance drop-off moving toward the outer retina. The most external structural features (**Layers 1, 2, and 3**) sit at the very bottom of the ranking with negligible importance scores. This shows that the external retinal anatomy remains largely uniform across these conditions, providing little to no discriminative utility for disease classification.
+
+
 
 
 ## Functional Data Analysis
