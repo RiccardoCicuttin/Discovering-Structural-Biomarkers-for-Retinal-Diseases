@@ -104,6 +104,10 @@ Four models were selected to tackle the classification problem, but before imple
 
 Since these methods require hyperparameters, we used **Nested Cross-Validation** with 10 folds. In fact, unlike standard cross-validation, Nested CV separates hyperparameter optimization from final performance estimation using a two-loop architecture: an inner loop performs a random search to find the absolute best hyperparameters for the model, while an outer loop evaluates how well that optimized model generalizes to entirely unseen data splits. By doing so, we obtain a highly realistic measure of how the model will perform on future production data. 
 
+<p align="center">
+  <img src="figures/classification/results.png" width="750">
+</p> 
+
 Performances of our models were assessed on the basis of the evaluation metrics **Macro-F1**, which treats every class with equal weight, and **balanced accuracy**, specific for imbalanced datasets. Results have shown that the penalized multinomial logistic regression and random forest are the best choices in terms of classification. 
 
 ### Log-Odds
