@@ -5,11 +5,13 @@ df_raw_train <- readRDS("datasets/df_raw_train.rds")
 layer_name_map <- readRDS("results/layer_name_map.rds")
 
 # create a list containing data of a single layer
-raw_train_by_layer = list()
+raw_train_by_layer <- list()
 for (l in unique(df_raw_train$names)) {
   raw_train_by_layer[[l]] = df_raw_train %>% filter(names == l)
   raw_train_by_layer[[l]] = as.data.frame(raw_train_by_layer[[l]])
 }
+
+saveRDS(raw_train_by_layer, "datasets/raw_train_by_layer.rds")
 
 # check how many patients have negative recordings per layer, divided by class
 neg_counts <- do.call(rbind, lapply(1:6, function(lyr_idx) {
@@ -33,11 +35,13 @@ neg_counts <- do.call(rbind, lapply(1:6, function(lyr_idx) {
 print(neg_counts)
 
 
+# ------------------------------------------------------------------------------
 # Smoothing
 # create common basis for each
 basis <- create.bspline.basis(c(0,1), 60, norder=4)
 # number of basis functions
-K = 100
+K = 60
+# possible rule of thumb: K = min(n/4, 40)  
 # search for the optimal smoothing lambda over a logarithmic grid
 lambda_grid = 10^seq(-4, 4, by = 0.5)
 # results of the smoothing
@@ -46,9 +50,11 @@ df_smooth_by_lyr <- lapply(c(1:6), function(i){
 })
 # example first patient of layer 1:
 # df_smooth_by_lyr[[1]]$smoothed[[1]]$smooth_res 
-saveRDS(df_smooth_by_lyr, "results/df_smooth_by_lyr.rds")
-  
 
+saveRDS(df_smooth_by_lyr, "results/df_smooth_by_lyr.rds")
+df_smooth_by_lyr <- readRDS("results/df_smooth_by_lyr.rds")
+
+# ------------------------------------------------------------------------------
 # MFPCA
 # To use MFPCA you need a multiFunData object 
 # which is a list of univariate funData objects
@@ -112,7 +118,7 @@ mfpca_fit <- MFPCA(
 # Dataset of scores
 scores_df <- as.data.frame(mfpca_fit$scores)
 colnames(scores_df) <- paste0("MFPC", 1:ncol(scores_df))
-# reattach IDs and labels — row order is preserved
+# reattach IDs and labels (row order is preserved)
 mfpca_features <- dplyr::bind_cols(patient_meta, scores_df)
 
 # group means of scores
@@ -138,7 +144,12 @@ mfpca_eigfuns <- sapply(1:20, function(i){
 })
 # mfpca_fit$functions[[1]]@X[20,] == mfpca_eigfuns[[20]]@X[1,]
 
+#mfpca_fit$scores       # n x M matrix: the scores xi_{ik}
+#mfpca_fit$vectors      # coefficient matrix for the eigenfunction expansion
+#mfpca_fit$meanFunction # multiFunData: the cross-layer mean
 
+
+# ------------------------------------------------------------------------------
 classes <- levels(factor(patient_meta$label))
 
 # mean functions
@@ -150,7 +161,9 @@ mean_funs_byclass <- lapply(seq_along(fd_layers), function(i) {
     meanFunction(fd_layer[rows_cls])
   })
 })
-# Access: mean_funs_byclass[[layer_idx]][[class_name]] → funData with 1 curve
+# Access:
+# mean_funs_byclass[[layer_idx]][[class_name]] 
+# is a funData with 1 curve
   
 # variance functions
 var_funs <- lapply(fd_layers, function(fl) {
@@ -169,29 +182,112 @@ var_funs_byclass <- lapply(seq_along(fd_layers), function(i) {
 })
 
 
-mfpca_fit$scores       # n x M matrix: the scores xi_{ik}
-mfpca_fit$vectors      # coefficient matrix for the eigenfunction expansion
-mfpca_fit$meanFunction # multiFunData: the cross-layer mean
+# ------------------------------------------------------------------------------
+# Smoothed curves evaluated on the grid, organized as an
+# n x L x M array (patients x layers x positions) 
+# The funData objects in fd_layers already hold each layer's 
+# n x M matrix in their @X slot, so we
+# just stack the 6 layers along a new middle dimension
+# fd_layers[[l]]@X  is  n x M   (patients x positions) for layer l
 
 
+grid   <- seq(0, 1, length.out = 750)
+labels <- factor(patient_meta$label) 
+n <- length(labels)
+L <- length(fd_layers)                  
+M  <- length(grid)                      
 
+# Build the n x L x M array
+layer_array <- array(NA_real_, dim = c(n, L, M))
+for (ell in seq_len(L)) {
+  layer_array[, ell, ] <- fd_layers[[ell]]@X   # n x M slice for this layer
+}
 
+# B / (B + sum_k W_k) is a trace-based descriptive ratio: the fraction
+# of total functional dispersion (summed across layers and positions)
+# explained by class membership
+# it's computed by vegan::adonis2
 
+# need the pairwise L2 distance matrix in the product space H = (L^2)^6
+# to calculate it
 
+# Convert each funData layer to fdata (fda.usc class)
+# fd_layers[[ell]]@X is the n x M matrix already evaluated on the grid
+fdata_layers <- lapply(fd_layers, function(fd_l) {
+  fdata(fd_l@X, argvals = grid)
+})
 
+# metric.lp computes the n x n matrix of pairwise L2 distances for one layer
+# default is L2 norm
+D_sq_layers <- lapply(fdata_layers, function(fd) {
+  as.matrix(metric.lp(fd, lp = 2))^2    # square to get squared distances
+})
 
+# Total squared multivariate distance: sum across layers
+D_sq_total <- Reduce("+", D_sq_layers)
 
+# Convert to a dist object (taking the square root back to actual distances)
+D <- as.dist(sqrt(D_sq_total))
 
+# PERMANOVA
+set.seed(2026)
+permanova_res <- adonis2(D ~ labels, permutations = 9999)
+print(permanova_res)
 
+eta2 <- permanova_res$R2[1]                   # the eta^2 effect size
+cat(sprintf("\neta^2 (fraction of functional variability explained by class): %.4f\n",
+            eta2))
 
+# Pointwise wilk's lambda
+# At each position t, treat the L=6 layer values as a multivariate response
+# and run a one-way MANOVA across classes. 
 
+# We plot 1 - Lambda(t) so that large = strong
 
+compute_one_minus_wilks <- function(arr, class_labels) {
+  M <- dim(arr)[3]
+  out <- numeric(M)
+  for (t_idx in seq_len(M)) {
+    Y <- arr[, , t_idx]                      
+    # manova requires a matrix response
+    # class_labels is the grouping factor
+    fit  <- manova(Y ~ class_labels)
+    lam  <- summary(fit, test = "Wilks")$stats[1, "Wilks"]
+    out[t_idx] <- 1 - lam
+  }
+  out
+}
 
+sep_curve <- compute_one_minus_wilks(layer_array, labels)
 
+# Tidy data frame for plotting
+sep_df <- tibble(
+  location  = grid,
+  separation = sep_curve
+)
 
+sep_curve <- ggplot(sep_df, aes(x = location, y = separation)) +
+  geom_point(size = 1.6, color = "#1565C0", alpha = 0.7) +
+  labs(
+    #title    = "Pointwise multivariate class separation along the retina",
+    #subtitle = expression("1 - Wilks' " * Lambda * "(t)"),
+    x = "Retinal location (normalized)",
+    y = expression("1 - " * Lambda * "(t)")
+  ) +
+  ylim(0, max(sep_curve) * 1.05) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
 
+print(sep_curve)
 
+separation_results <- list(
+  eta2          = eta2,
+  permanova     = permanova_res,
+)
+saveRDS(separation_results, "results/separation_results.rds")
 
+ggsave("figures/functional_data_analysis/sep_curve.png", plot = sep_curve, width = 8, height = 6, 
+       units = "in", dpi = 300)
 
 
 
