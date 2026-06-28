@@ -34,22 +34,20 @@ discovering-structural-biomarkers-for-retinal-diseases/
 ```
 
 
-## Dataset presentation
+## Dataset 
 
 To evaluate whether different retinal diseases exhibit distinct structural patterns and to identify potential morphological biomarkers, this project utilizes a high-resolution dataset of retinal thickness measurements. The data is derived from Optical Coherence Tomography (OCT) scans, a non-invasive imaging technique that provides detailed cross-sectional views of the retina.
 
-### Dataset architecture
-
 The dataset is highly structured to capture both the global anatomy and the localized topological features of the eye. For each patient in the study, the retina has been segmented into 6 distinct structural layers:
 
-- ilm - nflgcl (Inner Limiting Membrane to Nerve Fiber / Ganglion Cell Layer)
-- nflgcl - iplinl
-- iplinl - inlopl
-- inlopl - oplonl
-- oplonl - isos
-- isos - rpe (Inner/Outer Segment junction to Retinal Pigment Epithelium)
+ilm - nflgcl      = inner retinal surface to RNFL/GCL complex  
+nflgcl - iplinl   = ganglion cell + inner plexiform complex  
+iplinl - inlopl   = inner nuclear layer  
+inlopl - oplonl   = outer plexiform layer  
+oplonl - isos     = outer nuclear / photoreceptor inner region  
+isos - rpe        = photoreceptor outer segment to retinal pigment epithelium  
 
-For each of these 6 layers, the dataset records the discrete thickness measured at 878 localized points along a horizontal cross-sectional axis. This translates to an extremely granular 1D functional profile for each layer, allowing us to investigate whether pathological deformations occur globally across the entire retina or are confined to highly localized areas.
+For each of these 6 layers, the dataset records the discrete thickness measured at 750 localized points along a horizontal cross-sectional axis. This translates to an extremely granular 1D functional profile for each layer, allowing us to investigate whether pathological deformations occur globally across the entire retina or are confined to highly localized areas.
 
 The dataset comprises a total of 351 individuals, categorized into one healthy control group and four distinct pathological classes:
 - Healthy: Control subjects with no retinal structural anomalies.
@@ -60,11 +58,9 @@ The dataset comprises a total of 351 individuals, categorized into one healthy c
 
 The architecture of this dataset perfectly aligns with the project's core objectives. By having 6 parallel functional profiles per patient, we are not limited to analyzing layers in isolation. Instead, we can extract patient-specific covariance structures—measuring how the thickness of one layer correlates with another—and map them into specific geometric spaces (e.g., using Symmetric Positive Definite matrices and Riemannian distances).
 
-Furthermore, by applying supervised learning algorithms (such as Random Forests) and Functional Data Analysis (FDA) over these 878 points, we aim to isolate the specific layers, spatial regions, and structural correlations that act as the strongest biomarkers. Identifying these precise structural signatures can ultimately serve as a powerful proxy for automated medical classification and early diagnosis.
+By applying supervised learning algorithms , we aim to isolate the specific layers, spatial regions, and structural correlations that act as the strongest biomarkers. Identifying these precise structural signatures can ultimately serve as a powerful proxy for automated medical classification and early diagnosis.
 
-## Analysis outline 
-
-## Multivariate exploratory data analysis
+## Multivariate data analysis
 
 ### Dataset Architecture & Feature Engineering
 To transform the 878 raw spatial points of each retinal layer into optimized inputs for supervised machine learning models, we extract specific structural metrics from the 1D profiles:
@@ -110,6 +106,13 @@ Since these methods require hyperparameters, we used **Nested Cross-Validation**
 
 Performances of our models were assessed on the basis of the evaluation metrics **Macro-F1**, which treats every class with equal weight, and **balanced accuracy**, specific for imbalanced datasets. Results have shown that the penalized multinomial logistic regression and random forest are the best choices in terms of classification. 
 
+The table reports the results obtained onto the test set.
+
+<p align="center">
+  <img src="figures/classification/results_test.png" width="750">
+</p> 
+
+
 ### Log-Odds
 To better interpret the coefficients of a multinomial logistic regression, the probability $P(Y_i = k)$ that a given sample $i$ belongs to a disease class $k$ (where $k \in\{\text{AMD, CSR, DR, MH}\}$) relative to the reference base class $\text{Healthy}\$, is modeled using the log-odds (or logit) transformation:
 
@@ -119,10 +122,6 @@ Where:
 * **$x_{i,j}$** represents the value of the $j$-th feature (standardized by its Standard Deviation) for patient $i$.
 * **$\beta_{k,j}$** represents the standardized coefficient for feature $j$ within disease class $k$. 
 * An exponentiated coefficient ($e^{\beta_{k,j}}$) yields the **Odds Ratio (OR)**. A positive coefficient ($\beta > 0$) means an increase in that feature raises the likelihood of that specific disease occurring relative to the healthy baseline.
-
-<p align="center">
-  <img src="figures/classification/coefs_logreg.png" width="750">
-</p> 
 
 <p align="center">
   <img src="figures/classification/log_odds.png" width="750">
@@ -148,8 +147,6 @@ Our feature importance profile reveals a highly localized anatomical story:
 * **Variability Outperforms Absolute Thickness:** Local thickness instability in the deep internal tissue (**`logCV_layer6`**) achieved the maximum relative importance score of **100**, significantly outperforming raw layer thickness alone (`layer6` scored ~45). This proves that the structural irregularity or roughness of the inner layer tissue is a far more sensitive biomarker than absolute thinning or thickening.
 * **Value in Inter-Layer Ratios:** The high ranking of **`ratio_l5l6`** (~66) demonstrates that tracking the relative geometric relationship *between* adjacent inner layers provides powerful, non-redundant contextual information to the classifier.
 * **External Layer Uniformity:** There is a sharp performance drop-off moving toward the outer retina. The most external structural features (**Layers 1, 2, and 3**) sit at the very bottom of the ranking with negligible importance scores. This shows that the external retinal anatomy remains largely uniform across these conditions, providing little to no discriminative utility for disease classification.
-
-
 
 
 ## Functional Data Analysis
@@ -338,18 +335,26 @@ peak in the central foveal region identifies it as the locus of strongest
 multivariate class separation, consistent with the foveal concentration of
 discriminative signal.
 
-![Pointwise multivariate separation](figures/pointwise_separation.png)
+![Pointwise multivariate separation](figures/functional_data_analysis/sep_curve.png)
 
 
-## Results
+## Findings
+We found that most of the discriminant information is concentrated around the fovea, the center of the retina. This is meaningful, as the fovea processes
+most of the brain’s visual information thanks to its high photoreceptor density. The high within-class variability suggests that, even after identifying
+a significant biomarker, it may not suffice for classification on its own. Still, we retrieve recurring indicators of pathology:  
+• layer 5 is thicker across all disease classes;  
+• layer 6 breadth is particularly relevant in AMD;  
+• external layers are comparatively less informative.  
 
-### References
+## References
+- Friedman, J., Hastie, T., & Tibshirani, R. (2010). Regularization paths for generalized linear models via coordinate descent. *Journal of Statistical Software, 33*(1), 1–22.
+- Lewis, M. J. (2023). nestedcv: an R package for fast implementation of nested cross-validation with embedded feature selection designed for transcriptomics and high-dimensional data. *Bioinformatics Advances, 3*(1), vbad048.
 - Ramsay, J. O. & Silverman, B. W. (2005). *Functional Data Analysis* (2nd ed.).
   Springer.
 - Happ, C. & Greven, S. (2018). *Multivariate Functional Principal Component
   Analysis for Data Observed on Different (Dimensional) Domains.* Journal of
   the American Statistical Association, 113(522), 649–659.
 
-### Authors
+## Authors
 Adelaide Carnevale, Riccardo Cicuttin, Giulio Dalla Costa, Francesca Elefante      
 Supervisor: Dr. Lara Cavinato
