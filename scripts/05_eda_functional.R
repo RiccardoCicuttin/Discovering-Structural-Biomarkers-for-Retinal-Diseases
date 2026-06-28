@@ -37,11 +37,10 @@ print(neg_counts)
 
 # ------------------------------------------------------------------------------
 # Smoothing
-# create common basis for each
-basis <- create.bspline.basis(c(0,1), 60, norder=4)
 # number of basis functions
-K = 60
-# possible rule of thumb: K = min(n/4, 40)  
+K = 40
+# create common basis for each, using K basis functions
+basis <- create.bspline.basis(c(0,1), K, norder=4)
 # search for the optimal smoothing lambda over a logarithmic grid
 lambda_grid = 10^seq(-4, 4, by = 0.5)
 # results of the smoothing
@@ -109,7 +108,7 @@ uni_exp <- lapply(1:6, function(i) {
 
 mfpca_fit <- MFPCA(
   mFData = mfd,
-  M = 20, # number of pcs
+  M = 10, # number of pcs
   uniExpansions = uni_exp,
   fit = TRUE
 )
@@ -133,7 +132,7 @@ print(round(cum_ve, 3))
 # eigenfunctions (vectors of six functions)
 # mfpca_fit$functions is a  multiFunData: the M eigenfunctions psi_1,...,psi_M
 # save separately each eigenfunction
-mfpca_eigfuns <- sapply(1:20, function(i){
+mfpca_eigfuns <- sapply(1:10, function(i){
   
   mat = t(sapply(1:6, function(j){
     mfpca_fit$functions[[j]]@X[i, ]
@@ -190,7 +189,6 @@ var_funs_byclass <- lapply(seq_along(fd_layers), function(i) {
 # just stack the 6 layers along a new middle dimension
 # fd_layers[[l]]@X  is  n x M   (patients x positions) for layer l
 
-
 grid   <- seq(0, 1, length.out = 750)
 labels <- factor(patient_meta$label) 
 n <- length(labels)
@@ -234,7 +232,7 @@ set.seed(2026)
 permanova_res <- adonis2(D ~ labels, permutations = 9999)
 print(permanova_res)
 
-eta2 <- permanova_res$R2[1]                   # the eta^2 effect size
+eta2 <- permanova_res$R2[1] # the eta^2 effect size
 cat(sprintf("\neta^2 (fraction of functional variability explained by class): %.4f\n",
             eta2))
 
@@ -276,43 +274,18 @@ sep_curve <- ggplot(sep_df, aes(x = location, y = separation)) +
   ) +
   ylim(0, max(sep_curve) * 1.05) +
   theme_minimal(base_size = 12) +
-  theme(plot.title = element_text(face = "bold"))
+  theme(
+    plot.title   = element_text(face = "bold"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6)
+  )
 
 print(sep_curve)
 
 separation_results <- list(
   eta2          = eta2,
-  permanova     = permanova_res,
+  permanova     = permanova_res
 )
 saveRDS(separation_results, "results/separation_results.rds")
 
-ggsave("figures/functional_data_analysis/sep_curve.png", plot = sep_curve, width = 8, height = 6, 
+ggsave("figures/functional_data_analysis/sep_curve.png", plot = sep_curve, width = 9, height = 4.5, 
        units = "in", dpi = 300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
