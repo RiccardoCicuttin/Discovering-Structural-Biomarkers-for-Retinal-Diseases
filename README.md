@@ -100,17 +100,57 @@ Four models were selected to tackle the classification problem, but before imple
 
 Since these methods require hyperparameters, we used **Nested Cross-Validation** with 10 folds. In fact, unlike standard cross-validation, Nested CV separates hyperparameter optimization from final performance estimation using a two-loop architecture: an inner loop performs a random search to find the absolute best hyperparameters for the model, while an outer loop evaluates how well that optimized model generalizes to entirely unseen data splits. By doing so, we obtain a highly realistic measure of how the model will perform on future production data. 
 
-<p align="center">
-  <img src="figures/classification/results.png" width="750">
-</p> 
+| Features           | Model  | Macro-F1 | Macro-F1 SD | Balanced Accuracy | Balanced Accuracy SD |
+| ------------------ | ------ | -------: | ----------: | ----------------: | -------------------: |
+| means_logCV_ratios | logreg |    0.647 |       0.056 |             0.777 |                0.064 |
+| means_sd_ratios    | logreg |    0.617 |       0.047 |             0.760 |                0.053 |
+| means_logCV_ratios | rf     |    0.616 |       0.103 |             0.766 |                0.065 |
+| means_logCV_ratios | svm    |    0.615 |       0.064 |             0.773 |                0.056 |
+| means_logCV_ratios | knn    |    0.590 |       0.089 |             0.683 |                0.053 |
+| means_sd_ratios    | svm    |    0.575 |       0.085 |             0.748 |                0.069 |
+| means_sd           | rf     |    0.569 |       0.091 |             0.745 |                0.053 |
+| means              | rf     |    0.550 |       0.094 |             0.723 |                0.073 |
+| means_sd           | logreg |    0.546 |       0.067 |             0.721 |                0.074 |
+| means_sd_ratios    | rf     |    0.543 |       0.097 |             0.730 |                0.059 |
+| means_sd_ratios    | knn    |    0.500 |       0.105 |             0.686 |                0.060 |
+| means_sd           | svm    |    0.492 |       0.078 |             0.705 |                0.064 |
+| means_sd           | knn    |    0.478 |       0.098 |             0.677 |                0.061 |
+| means              | knn    |    0.465 |       0.092 |             0.671 |                0.068 |
+| means              | logreg |    0.454 |       0.100 |             0.671 |                0.047 |
+| means              | svm    |    0.415 |       0.100 |             0.671 |                0.040 |
+| corr_pat_spec      | svm    |    0.365 |       0.095 |             0.619 |                0.080 |
+| corr_pat_spec      | rf     |    0.360 |       0.104 |             0.618 |                0.089 |
+| corr_pat_spec      | logreg |    0.330 |       0.151 |             0.599 |                0.079 |
+| corr_pat_spec      | knn    |    0.301 |       0.143 |             0.578 |                0.074 |
+
 
 Performances of our models were assessed on the basis of the evaluation metrics **Macro-F1**, which treats every class with equal weight, and **balanced accuracy**, specific for imbalanced datasets. Results have shown that the penalized multinomial logistic regression and random forest are the best choices in terms of classification. 
 
-The table reports the results obtained onto the test set.
+The following table reports the results obtained onto the test set.
 
-<p align="center">
-  <img src="figures/classification/results_test.png" width="750">
-</p> 
+| Features           | Model  | Macro-F1 | Balanced Accuracy | Accuracy |
+| ------------------ | ------ | -------: | ----------------: | -------: |
+| means_logCV_ratios | rf     |    0.733 |             0.836 |    0.814 |
+| means_sd           | rf     |    0.716 |             0.819 |    0.802 |
+| means_logCV_ratios | logreg |    0.671 |             0.803 |    0.756 |
+| means_sd_ratios    | rf     |    0.667 |             0.796 |    0.767 |
+| means_sd_ratios    | logreg |    0.664 |             0.796 |    0.756 |
+| means              | rf     |    0.647 |             0.782 |    0.744 |
+| means              | logreg |    0.641 |             0.719 |    0.686 |
+| means_logCV_ratios | svm    |    0.620 |             0.778 |    0.709 |
+| means_sd           | knn    |    0.582 |             0.677 |    0.651 |
+| means_sd           | logreg |    0.576 |             0.748 |    0.709 |
+| means              | knn    |    0.558 |             0.731 |    0.709 |
+| means_sd           | svm    |    0.540 |             0.733 |    0.674 |
+| means              | svm    |    0.538 |             0.742 |    0.605 |
+| means_sd_ratios    | knn    |    0.535 |             0.654 |    0.628 |
+| means_sd_ratios    | svm    |    0.532 |             0.733 |    0.616 |
+| corr_pat_spec      | rf     |    0.500 |             0.496 |    0.105 |
+| means_logCV_ratios | knn    |    0.469 |             0.661 |    0.628 |
+| corr_pat_spec      | knn    |    0.274 |             0.460 |    0.291 |
+| corr_pat_spec      | logreg |    0.232 |             0.490 |    0.221 |
+| corr_pat_spec      | svm    |    0.117 |             0.438 |    0.070 |
+
 
 
 ### Log-Odds
@@ -335,7 +375,10 @@ peak in the central foveal region identifies it as the locus of strongest
 multivariate class separation, consistent with the foveal concentration of
 discriminative signal.
 
-![Pointwise multivariate separation](figures/functional_data_analysis/sep_curve.png)
+<p align="center">
+  <img src="figures/functional_data_analysis/sep_curve.png" alt="mfpca funs" width="750">
+</p> 
+
 
 
 ## Findings
