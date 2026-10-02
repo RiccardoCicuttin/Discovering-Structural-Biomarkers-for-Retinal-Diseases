@@ -93,12 +93,13 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
     ) %>%
     filter(!is.na(Thickness)) %>%
     group_by(names) %>%
-    mutate(Location = row_number()) %>%
+    mutate(
+      Location = row_number(),
+      t = seq(0, 1, length.out = n())
+    ) %>%
     ungroup() %>%
     dplyr::select(-Raw_Column)
   
-  # smoothing happens inside the plot function
-  # lambda can be chosen from the one found with smooth_layer
   smooth_one <- function(y) {
     m      <- length(y)
     t_grid <- seq(0, 1, length.out = m)
@@ -113,7 +114,7 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
     ungroup()
   
   patient_long <- patient_long %>%
-    group_by(Location) %>%
+    group_by(t) %>%
     arrange(names, .by_group = TRUE) %>%
     mutate(Cumulative_raw = cumsum(Thickness)) %>%
     ungroup()
@@ -123,18 +124,26 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
   point_palette  <- colorspace::darken(rev(fill_palette), amount = 0.4)
   names(point_palette) <- levels(patient_long$names)
   
-  p <- ggplot(patient_long, aes(x = Location)) +
-    geom_area(aes(y = Thickness_smooth, fill = names),
-              alpha = 0.85, color = "white", linewidth = 0.2) +
+  p <- ggplot(patient_long, aes(x = t)) +
+    geom_area(
+      aes(y = Thickness_smooth, fill = names),
+      stat = "identity",
+      position = "stack",
+      alpha = 0.85,
+      color = "white",
+      linewidth = 0.2
+    ) +
     scale_fill_viridis_d(option = "turbo") +
+    scale_x_continuous(
+      limits = c(0, 1),
+      breaks = c(0, 0.25, 0.5, 0.75, 1),
+      labels = c("0", "0.25", "0.50", "0.75", "1"),
+      expand = expansion(mult = c(0, 0))
+    ) +
     labs(
-      title    = paste0("Topographical profile: ", class, ", patient ", id),
-      subtitle = paste0("Smoothed inter-layer profile (lambda = ",
-                        formatC(lambda, format = "e", digits = 1), ")",
-                        if (show_points) " with raw measurements" else ""),
-      x        = "Spatial Location (Sequential Index)",
-      y        = "Cumulative Thickness (pixel)",
-      fill     = "Retinal Layer"
+      x    = "Normalised spatial position",
+      y    = "Cumulative Thickness (pixel)",
+      fill = "Retinal Layer"
     ) +
     theme_minimal(base_size = 14) +
     theme(
@@ -145,17 +154,18 @@ plot_patient_profile <- function(df, class, id, k, basis, lambda,
   
   if (show_points) {
     p <- p +
-      geom_point(aes(y = Cumulative_raw, color = names),
-                 size = 0.8, alpha = 0.7, shape = 16) +
-      scale_color_manual(values = point_palette, guide = "none")
+      geom_point(
+        aes(y = Cumulative_raw, color = names),
+        size = 0.8,
+        alpha = 0.7,
+        shape = 16,
+        show.legend = FALSE
+      ) +
+      scale_color_manual(values = point_palette)
   }
   
   p
 }
-
-
-
-
 
 
 
