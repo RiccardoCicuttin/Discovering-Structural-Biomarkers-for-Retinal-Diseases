@@ -62,14 +62,23 @@ ggsave("figures/functional_data_analysis/layers_smooth_plot.png", plot = layers_
 
 # ------------------------------------------------------------------------------
  # Plot single layer profile
-plot_patient_profile(df_raw_train, "Healthy", 11, 100, basis, 1e-04, show_points = F)
-# csr 50
+df_raw <- readRDS("datasets/df_raw.rds")
+h5_plot <- plot_patient_profile(df_raw, "Healthy", 5, 100, basis, 1e-04, show_points = F)
+h5_plot
+ggsave("figures/functional_data_analysis/smooth_healthy5.png", plot = h5_plot, width = 9, height = 4.5, 
+       units = "in", dpi = 300)
+amd12_plot <- plot_patient_profile(df_raw, "AMD", 12, 100, basis, 1e-04, show_points = F)
+amd12_plot
+ggsave("figures/functional_data_analysis/smooth_AMD12.png", plot = amd12_plot, width = 9, height = 4.5, 
+       units = "in", dpi = 300)
 
 
 # ------------------------------------------------------------------------------
 # Plot the eigenfunctions
-n_pc  <- 8
-#cum_ve[8] : 0.87
+n_pc  <- 6
+# cum_ve[n_pc] is the share of the retained (M = 10) variance these panels
+# carry; print(round(cum_ve, 3)) in 05_eda_functional.R and quote it in the
+# report rather than hard-coding it here.
 n_lyr  <- 6
 
 eig_long <- do.call(rbind, lapply(1:n_pc, function(k) {
@@ -89,12 +98,12 @@ eig_long$layer   <- factor(eig_long$layer,   levels = paste0("layer", 1:n_lyr))
 mfpca_fun_plot <- ggplot(eig_long, aes(x = t, y = value, color = layer)) +
   geom_hline(yintercept = 0, color = "grey60", linewidth = 0.4) +
   geom_line(linewidth = 1.1) +
-  facet_wrap(~ psi_idx, ncol = 4, labeller = label_parsed) +
+  facet_wrap(~ psi_idx, ncol = 3, labeller = label_parsed) +
   scale_color_viridis_d(option = "turbo") +
   guides(color = guide_legend(override.aes = list(linewidth = 2))) +
   labs(
-    title    = "First 8 multivariate eigenfunctions from MFPCA",
-    subtitle = expression("Each panel shows " * psi[k](t) * " = (" * psi[k]^(1)(t) * ", ..., " * psi[k]^(6) (t) * ")"),
+    #title    = "First 8 multivariate eigenfunctions from MFPCA",
+    #subtitle = expression("Each panel shows " * psi[k](t) * " = (" * psi[k]^(1)(t) * ", ..., " * psi[k]^(6) (t) * ")"),
     x        = "Normalised spatial position",
     y        = "Eigenfunction value",
     color    = "Retinal layer"
@@ -114,7 +123,7 @@ ggsave("figures/functional_data_analysis/mfpca_fun_plot.png", plot = mfpca_fun_p
 
 # ------------------------------------------------------------------------------
 # Boxplot of first 8 mfpcas scores by class
-n_pc <- 8
+n_pc <- 6
 
 scores_long <- mfpca_features %>%
   dplyr::select(label, dplyr::all_of(paste0("MFPC", 1:n_pc))) %>%
@@ -128,7 +137,7 @@ scores_long <- mfpca_features %>%
 mfpca_scores_boxplot <- ggplot(scores_long, aes(x = label, y = score, fill = label)) +
   geom_boxplot(color = "black", outlier.shape = NULL, outlier.fill = "white",
                outlier.size = 1.5, median.linewidth = 0.6) +
-  facet_wrap(~ pc, ncol = 4, scales = "free_y") +
+  facet_wrap(~ pc, ncol = 3, scales = "free_y") +
   scale_fill_manual(values = my_cols) +
   theme_minimal() +
   theme(
@@ -139,7 +148,7 @@ mfpca_scores_boxplot <- ggplot(scores_long, aes(x = label, y = score, fill = lab
     strip.text       = element_text(face = "bold")
   ) +
   labs(
-    title = "Distribution of the first 8 MFPCA scores by class",
+    title = paste0("Distribution of the first ", n_pc, " MFPCA scores by class"),
     x     = "Diagnosis",
     y     = "Score"
   )
@@ -185,7 +194,7 @@ p_means <- ggplot(mean_long, aes(x = t, y = value, color = class)) +
   scale_color_manual(values = my_cols) +
   guides(color = guide_legend(override.aes = list(linewidth = 2))) +
   labs(
-    title = "Class-specific mean thickness profiles",
+    #title = "Class-specific mean thickness profiles",
     x     = "Normalised spatial position",
     y     = "Thickness (pixel)",
     color = "Diagnosis"
@@ -206,7 +215,7 @@ p_vars <- ggplot(var_long, aes(x = t, y = value, color = class)) +
   scale_color_manual(values = my_cols) +
   guides(color = guide_legend(override.aes = list(linewidth = 2))) +
   labs(
-    title = "Class-specific pointwise variance profiles",
+    #title = "Class-specific pointwise variance profiles",
     x     = "Normalised spatial position",
     y     = "Variance",
     color = "Diagnosis"
@@ -217,7 +226,8 @@ p_vars <- ggplot(var_long, aes(x = t, y = value, color = class)) +
     strip.background = element_rect(fill = "grey90"),
     strip.text       = element_text(face = "bold"),
     legend.position  = "bottom",
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
   )
 
 p_means
@@ -230,56 +240,59 @@ ggsave("figures/functional_data_analysis/var_funs.png", plot = p_vars, width = 8
 
 
 # ------------------------------------------------------------------------------
-# Perturbation: what happens if I move the population mean in the direction of
-# psi_k by the average amount class j moves
+# Perturbation: what shape change does component k encode
+# the six-layer mean is perturbed by a fixed multiple of the
+# component's own standard deviation sqrt(lambda_k)
+# Every component is scaled by its own SD, so the panels are directly
+# comparable, and the +/- pair shows the mode symmetrically in both directions.
 n_pc <- 4
 
 # Population mean function per layer (across all training patients)
 # 6 × 750 matrix
-mu_mat <- t(sapply(fd_layers, function(fl) meanFunction(fl)@X[1, ]))   
+mu_mat <- t(sapply(fd_layers, function(fl) meanFunction(fl)@X[1, ]))
 
-# Class-mean MFPCA scores: average score per (class, PC)
-class_mean_scores <- mfpca_features %>%
-  dplyr::group_by(label) %>%
-  dplyr::summarise(dplyr::across(dplyr::starts_with("MFPC"), mean),
-                   .groups = "drop")
-# class_mean_scores: rows = classes, columns = label + MFPC1..MFPC20
+c_sd     <- 2                  # perturbation size, in SDs of the component (1 is also conventional)
+lambda_k <- mfpca_fit$values   # eigenvalues: score variance on each component
 
-# Build long tibble: one row per (PC, layer, class, grid point) for the perturbed curve
-perturb_long <- do.call(rbind, lapply(1:n_pc, function(k) {
+perturb_sd_long <- do.call(rbind, lapply(1:n_pc, function(k) {
   do.call(rbind, lapply(1:6, function(lyr) {
-    # Layer-lyr component of psi_k
     psi_k_lyr <- mfpca_eigfuns[[k]]@X[lyr, ]
-    
-    do.call(rbind, lapply(classes, function(cls) {
-      # Average score of class cls on PC k
-      xi_bar_jk <- class_mean_scores[[paste0("MFPC", k)]][class_mean_scores$label == cls]
-      
-      tibble::tibble(
-        pc    = paste0("psi[", k, "]"),
-        layer = paste0("layer", lyr),
-        class = cls,
-        t     = t_grid,
-        value = mu_mat[lyr, ] + xi_bar_jk * psi_k_lyr
-      )
-    }))
+    delta     <- c_sd * sqrt(lambda_k[k]) * psi_k_lyr
+    mu_lyr    <- mu_mat[lyr, ]
+
+    tibble::tibble(
+      pc    = paste0("psi[", k, "]"),
+      layer = paste0("layer", lyr),
+      curve = rep(c("mean", "plus", "minus"), each = length(t_grid)),
+      t     = rep(t_grid, 3),
+      value = c(mu_lyr, mu_lyr + delta, mu_lyr - delta)
+    )
   }))
 }))
 
-perturb_long$pc    <- factor(perturb_long$pc, levels = paste0("psi[", 1:n_pc, "]"))
-perturb_long$layer <- factor(perturb_long$layer, levels = paste0("layer", 1:6))
+perturb_sd_long$pc    <- factor(perturb_sd_long$pc,    levels = paste0("psi[", 1:n_pc, "]"))
+perturb_sd_long$layer <- factor(perturb_sd_long$layer, levels = paste0("layer", 1:6))
+perturb_sd_long$curve <- factor(perturb_sd_long$curve, levels = c("mean", "plus", "minus"))
 
-mfpca_lyr_perturbations <- ggplot(perturb_long, aes(x = t, y = value, color = class)) +
+mfpca_lyr_perturbations_sd <- ggplot(perturb_sd_long,
+                                     aes(x = t, y = value,
+                                         color = curve, linetype = curve)) +
   geom_line(linewidth = 0.8) +
   facet_grid(pc ~ layer, scales = "free_y", labeller = labeller(pc = label_parsed)) +
-  scale_color_manual(values = my_cols) +
+  scale_color_manual(
+    values = c(mean = "grey30", plus = "#D62728", minus = "#1F77B4"),
+    labels = c(mean = "mean", plus = "mean + c*sd", minus = "mean - c*sd")
+  ) +
+  scale_linetype_manual(
+    values = c(mean = "solid", plus = "dashed", minus = "dashed"),
+    labels = c(mean = "mean", plus = "mean + c*sd", minus = "mean - c*sd")
+  ) +
   guides(color = guide_legend(override.aes = list(linewidth = 2))) +
   labs(
-    title    = "Class-specific perturbations along each MFPCA component",
-    subtitle = expression("Per panel: " * hat(mu)^(l)(t) + bar(xi)[list(j,k)] %.% psi[k]^(l)(t)),
     x        = "Normalised spatial position",
     y        = "Perturbed thickness",
-    color    = "Diagnosis"
+    color    = paste0("Perturbation (c = ", c_sd, ")"),
+    linetype = paste0("Perturbation (c = ", c_sd, ")")
   ) +
   theme_minimal(base_size = 11) +
   theme(
@@ -287,12 +300,13 @@ mfpca_lyr_perturbations <- ggplot(perturb_long, aes(x = t, y = value, color = cl
     strip.background = element_rect(fill = "grey90"),
     strip.text       = element_text(face = "bold", size = 9),
     legend.position  = "bottom",
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),
+    axis.text.x      = element_text(angle = 45, hjust = 1, vjust = 1)
   )
 
-mfpca_lyr_perturbations
+mfpca_lyr_perturbations_sd
 
-ggsave("figures/functional_data_analysis/mfpca_lyr_perturbations.png", plot = mfpca_lyr_perturbations, width = 8, height = 6, 
+ggsave("figures/functional_data_analysis/mfpca_lyr_perturbations_sd.png", plot = mfpca_lyr_perturbations_sd, width = 8, height = 6,
        units = "in", dpi = 300)
 
 
