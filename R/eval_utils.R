@@ -1,5 +1,26 @@
 source("R/packages.R")
 
+# Macro-averaged F1 from a caret confusionMatrix.
+# caret returns NA for a class it never predicts, because precision is 0/0.
+# The limiting value of F1 there is 0 (recall is 0), so such a class scores 0
+# rather than being dropped from the average: a model that ignores a class must
+# be penalised for it. A class absent from the reference altogether has no F1 to
+# score and is still dropped.
+macro_f1 <- function(cm) {
+  f1      <- cm$byClass[, "F1"]
+  support <- colSums(cm$table)          # reference counts, cols = truth
+  f1[is.na(f1) & support > 0] <- 0
+  mean(f1, na.rm = TRUE)
+}
+
+# Per-class F1 on the same convention as macro_f1(), for diagnostic tables.
+per_class_f1 <- function(cm) {
+  f1      <- cm$byClass[, "F1"]
+  support <- colSums(cm$table)
+  f1[is.na(f1) & support > 0] <- 0
+  f1
+}
+
 # function to obtain evaluation metrics from results of a nested cv
 # this gives an estimate of the performance of the procedure used to 
 # choose hyperparaeters and fit the model
@@ -29,7 +50,7 @@ nestcv_modeval <- function(obj, folds) {
     
     tibble::tibble(
       fold         = k,
-      macro_F1     = mean(cm_f$byClass[, "F1"],                na.rm = TRUE),
+      macro_F1     = macro_f1(cm_f),
       balanced_acc = mean(cm_f$byClass[, "Balanced Accuracy"], na.rm = TRUE)
     )
   }))
@@ -41,9 +62,9 @@ nestcv_modeval <- function(obj, folds) {
     fold_metrics  = fold_metrics,
     metrics = list(
       # Aggregate metrics: pooled across all predictions
-      macro_F1        = mean(cm$byClass[, "F1"],                na.rm = TRUE),
+      macro_F1        = macro_f1(cm),
       balanced_acc    = mean(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE),
-      per_class_F1    = cm$byClass[, "F1"],
+      per_class_F1    = per_class_f1(cm),
       # Variability across folds: meaningful uncertainty estimate for CV
       macro_F1_sd     = sd(fold_metrics$macro_F1),
       balanced_acc_sd = sd(fold_metrics$balanced_acc)
