@@ -67,8 +67,31 @@ summary_tbl[which.max(summary_tbl$macro_F1), ]
 
 
 # ------------------------------------------------------------------------------
+# Final fitted models
+
+# For each (model, dataset) combination in "results', we extract:
+# - the final fitted model
+# - the tuning parameter at which it was fit
+# - dataset name, model name, the original key
+#
+# Everything is  stored under named keys in a list called "final_models",
+# mirroring the keys in "results"
+#
+# extract_final_model() lives in R/eval_utils.R: it knows how nestcv.glmnet and
+# nestcv.train each store their final fit. It is shared with the test-set
+# evaluation of scripts/07_restricted_models.R, so both chapters deploy the same
+# object in the same way
+
+final_models <- Filter(Negate(is.null), lapply(results, extract_final_model))
+
+saveRDS(final_models, file = "results/final_models.rds")
+
+final_mods <- readRDS("results/final_models.rds")
+
+
+# ------------------------------------------------------------------------------
 # Analysis of penalized multinomial logistic regression on means_logCV_ratios dataset
-logreg_fit<- results[["logreg_means_logCV_ratios"]]$fit   
+logreg_fit<- results[["logreg_means_logCV_ratios"]]$fit
 # note that glmnet fits the multinomial logistic regression in the "symmetric form"
 # you do not pick a baseline class 
 # you get estimates of coefficients for each class 
@@ -232,187 +255,3 @@ rf_var_importance <- plot_rf_importance(final_mods[["rf_means_logCV_ratios"]])
 rf_var_importance
 ggsave("figures/classification/rf_var_importance.png", plot = rf_var_importance, width = 8, height = 6, 
        units = "in", dpi = 300)
-
-# ------------------------------------------------------------------------------
-# Test set prediction
-
-# For each (model, dataset) combination in "results', we extract:
-#   - the final fitted model 
-#   - the tuning parameter at which it was fit
-#   - dataset name, model name, the original key
-#
-
-# Everything is  stored under named keys in a list called "final_models", 
-# mirroring the keys in "results"
-
-final_models <- list()
-
-for (key in names(results)) {
-  entry <- results[[key]]
-  fit   <- entry$fit
-  
-  # nestcv objects store the final-fit object differently depending on the
-  # underlying model
-  # class(fit)
-  
-  if (inherits(fit, "nestcv.glmnet")) {
-    final_models[[key]] <- list(
-      dataset       = entry$dataset,
-      model         = entry$model,
-      type          = "glmnet",
-      final_fit     = fit$final_fit,
-      final_param   = fit$final_param,
-      lambda        = fit$final_param["lambda"],
-      alpha         = fit$final_param["alpha"]
-    )
-    
-  } else if (inherits(fit, "nestcv.train")) {
-    # nestcv.train wraps caret::train; final_fit is a caret train object
-    final_models[[key]] <- list(
-      dataset       = entry$dataset,
-      model         = entry$model,
-      type          = "caret",
-      final_fit     = fit$final_fit,
-      final_param   = fit$final_param
-    )
-  } 
-}
-
-saveRDS(final_models, file = "results/final_models.rds")
-
-final_mods <- readRDS("results/final_models.rds")
-
-y_test <- readRDS("datasets/y_test.rds")
-test_datasets <- readRDS("datasets/test_datasets.rds")
-class_ord_path <- readRDS("results/class_ord_from_healthy.rds")
-
-# Dispatches to the correct predict method based on the model object class
-predict_final_model <- function(entry, x_test, y_test) {
-  
-  fit <- entry$final_fit
-  
-  # caret-trained models
-  if (inherits(fit, "train")) {
-    preds <- predict(fit, newdata = x_test)
-  }
-  
-  # nestcv.train wrappers (from RF, SVM, kNN)
-  # nestcv.train stores the deployable model in $final_fit (which is
-  # a caret train object)
-  else if (inherits(fit, "nestcv.train")) {
-    preds <- predict(fit$final_fit, newdata = x_test)
-  }
-  
-  # cv.glmnet (from nestcv.glmnet penalized logistic regression) 
-  # cv.glmnet has its own predict method 
-  # pass s = "lambda.min" for the cross-validated optimal lambda 
-  # chosen during the final CV
-  else if (inherits(fit, "cv.glmnet")) {
-    raw   <- predict(fit, newx = x_test, s = "lambda.min", type = "class")
-    preds <- factor(raw[, 1], levels = levels(y_test))
-  }
-  
-  preds
-}
-
-# Evaluate every model on its corresponding test dataset
-test_results <- lapply(names(final_mods), function(key) {
-  entry <- final_mods[[key]]
-  
-  # Select the matching test set features
-  if (entry$dataset %in% names(test_datasets)) {
-    x_test <- test_datasets[[entry$dataset]]}
-  
-  list(
-    dataset = entry$dataset,
-    model   = entry$model,
-    eval    = evaluate_final_model(entry, x_test, y_test)
-  )
-})
-names(test_results) <- names(final_mods)
-
-# Returns predictions, truth, confusion matrix, and metrics
-evaluate_final_model <- function(entry, x_test, y_test) {
-  
-  preds <- predict_final_model(entry, x_test, y_test)
-  truth <- y_test
-  cm    <- caret::confusionMatrix(preds, truth)
-  
-  list(
-    predictions   = preds,
-    truth         = truth,
-    confusion_mat = cm,
-    metrics = list(
-      # Aggregate metrics
-      macro_F1            = mean(cm$byClass[, "F1"],                na.rm = TRUE),
-      balanced_acc        = mean(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE),
-      accuracy            = cm$overall["Accuracy"],
-      kappa               = cm$overall["Kappa"],
-      
-      # Per-class — useful for diagnostic tables
-      per_class_F1        = cm$byClass[, "F1"],
-      per_class_precision = cm$byClass[, "Pos Pred Value"],   # caret's name for precision
-      per_class_recall    = cm$byClass[, "Sensitivity"]        # caret's name for recall
-    )
-  )
-}
-
-summary_test <- function(results) {
-  do.call(rbind, lapply(results, function(r) {
-    m <- r$eval$metrics
-    tibble::tibble(
-      dataset         = r$dataset,
-      model           = r$model,
-      macro_F1        = m$macro_F1,
-      balanced_acc    = m$balanced_acc,
-      accuracy        = unname(m$accuracy),
-      kappa           = unname(m$kappa)
-    )
-  }))
-}
-
-perclass_metric <- function(results, metric_name = "per_class_F1",
-                               class_ord_path = "results/class_ord_from_healthy.rds") {
-  class_order <- readRDS(class_ord_path)
-  
-  tbl <- do.call(rbind, lapply(results, function(r) {
-    vec <- r$eval$metrics[[metric_name]]
-    names(vec) <- sub("Class: ", "", names(vec))
-    tibble::tibble(dataset = r$dataset, model = r$model, !!!vec)
-  }))
-  
-  tbl %>% dplyr::select(dataset, model, dplyr::all_of(class_order))
-}
-
-summary_df <- summary_test(test_results)
-
-cat("\n── HEADLINE TABLE: aggregate metrics ──\n")
-print(summary_df |>
-        dplyr::arrange(dplyr::desc(macro_F1), dplyr::desc(balanced_acc)) |>
-        print(n = Inf))
-
-cat("\n── BY DATASET: how does feature complexity affect each model? ──\n")
-print(summary_df |>
-        dplyr::group_by(dataset) |>
-        dplyr::arrange(dplyr::desc(macro_F1), .by_group = TRUE) |>
-        print(n = Inf))
-
-cat("\n── PER-CLASS F1: which diseases are easy/hard? ──\n")
-perclassF1_df  <- perclass_metric(test_results, "per_class_F1")
-print(perclassF1_df, n = Inf)
-
-cat("\n── PER-CLASS PRECISION: when the model predicts X, is it right? ──\n")
-perclassPrec_df <- perclass_metric(test_results, "per_class_precision")
-print(perclassPrec_df, n = Inf)
-
-cat("\n── PER-CLASS RECALL: of the true X cases, how many are caught? ──\n")
-perclassRec_df  <- perclass_metric(test_results, "per_class_recall")
-print(perclassRec_df, n = Inf)
-
-
-
-
-
-
-
-

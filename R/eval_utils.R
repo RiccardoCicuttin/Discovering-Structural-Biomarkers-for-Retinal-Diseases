@@ -96,9 +96,6 @@ perclass_F1_cv <- function(results,
                             class_ord_path = "results/class_ord_from_healthy.rds") {
   
   # Load class ordering: Healthy first, then diseases by distance from Healthy.
-  # This ordering is meaningful: classes further from Healthy in covariance
-  # space should in principle be easier to classify — the table makes this
-  # pattern immediately visible.
   class_order <- readRDS(class_ord_path)
   
   tbl <- do.call(rbind, lapply(results, function(r) {
@@ -108,6 +105,127 @@ perclass_F1_cv <- function(results,
   }))
   
   # Reorder class columns according to the covariance-based ordering
+  tbl %>% dplyr::select(dataset, model, dplyr::all_of(class_order))
+}
+
+
+# ------------------------------------------------------------------------------
+# Test-set evaluation
+
+# nestcv objects store the final-fit object differently depending on the
+# underlying model: pull out a uniform entry for the evaluation functions.
+extract_final_model <- function(entry) {
+
+  fit <- entry$fit
+
+  if (inherits(fit, "nestcv.glmnet")) {
+    list(
+      dataset     = entry$dataset,
+      model       = entry$model,
+      type        = "glmnet",
+      final_fit   = fit$final_fit,
+      final_param = fit$final_param,
+      lambda      = fit$final_param["lambda"],
+      alpha       = fit$final_param["alpha"]
+    )
+
+  } else if (inherits(fit, "nestcv.train")) {
+    # nestcv.train wraps caret::train; final_fit is a caret train object
+    list(
+      dataset     = entry$dataset,
+      model       = entry$model,
+      type        = "caret",
+      final_fit   = fit$final_fit,
+      final_param = fit$final_param
+    )
+  }
+}
+
+
+# Dispatches to the correct predict method based on the model object class
+predict_final_model <- function(entry, x_test, y_test) {
+
+  fit <- entry$final_fit
+
+  # caret-trained models
+  if (inherits(fit, "train")) {
+    preds <- predict(fit, newdata = x_test)
+  }
+
+  # nestcv.train wrappers (from RF, SVM, kNN)
+  # nestcv.train stores the deployable model in $final_fit (which is
+  # a caret train object)
+  else if (inherits(fit, "nestcv.train")) {
+    preds <- predict(fit$final_fit, newdata = x_test)
+  }
+
+  # cv.glmnet (from nestcv.glmnet penalized logistic regression)
+  # cv.glmnet has its own predict method
+  # pass s = "lambda.min" for the cross-validated optimal lambda
+  # chosen during the final CV
+  else if (inherits(fit, "cv.glmnet")) {
+    raw   <- predict(fit, newx = x_test, s = "lambda.min", type = "class")
+    preds <- factor(raw[, 1], levels = levels(y_test))
+  }
+
+  preds
+}
+
+
+# Returns predictions, truth, confusion matrix, and metrics
+evaluate_final_model <- function(entry, x_test, y_test) {
+
+  preds <- predict_final_model(entry, x_test, y_test)
+  truth <- y_test
+  cm    <- caret::confusionMatrix(preds, truth)
+
+  list(
+    predictions   = preds,
+    truth         = truth,
+    confusion_mat = cm,
+    metrics = list(
+      # Aggregate metrics
+      macro_F1 = macro_f1(cm),
+      balanced_acc = mean(cm$byClass[, "Balanced Accuracy"], na.rm = TRUE),
+      accuracy = cm$overall["Accuracy"],
+      kappa = cm$overall["Kappa"],
+
+      # Per-class (for diagnostic tables)
+      per_class_F1 = per_class_f1(cm),
+      per_class_precision = cm$byClass[, "Pos Pred Value"],
+      per_class_recall = cm$byClass[, "Sensitivity"]
+    )
+  )
+}
+
+
+# Create tibble with test-set metrics
+summary_test <- function(results) {
+  do.call(rbind, lapply(results, function(r) {
+    m <- r$eval$metrics
+    tibble::tibble(
+      dataset         = r$dataset,
+      model           = r$model,
+      macro_F1        = m$macro_F1,
+      balanced_acc    = m$balanced_acc,
+      accuracy        = unname(m$accuracy),
+      kappa           = unname(m$kappa)
+    )
+  }))
+}
+
+
+# Create tibble with one per-class metric, classes in the covariance-based order
+perclass_metric <- function(results, metric_name = "per_class_F1",
+                            class_ord_path = "results/class_ord_from_healthy.rds") {
+  class_order <- readRDS(class_ord_path)
+
+  tbl <- do.call(rbind, lapply(results, function(r) {
+    vec <- r$eval$metrics[[metric_name]]
+    names(vec) <- sub("Class: ", "", names(vec))
+    tibble::tibble(dataset = r$dataset, model = r$model, !!!vec)
+  }))
+
   tbl %>% dplyr::select(dataset, model, dplyr::all_of(class_order))
 }
 
@@ -196,7 +314,6 @@ plot_rf_importance <- function(final_mods_entry, top_n = NULL,
   if (!is.null(top_n)) imp_df <- imp_df %>% dplyr::slice_head(n = top_n)
   
   # Normalise to 0-100 (relative to maximum)
-  # (Introduction to statistical learning uses this convention)
   imp_df <- imp_df %>%
     dplyr::mutate(importance = 100 * importance / max(importance))
   
