@@ -31,7 +31,7 @@ for (ds_name in names(datasets)) {
   for (mod_name in names(models)) {
     key <- paste(mod_name, ds_name, sep = "_") # key to lookup for results, ex: logreg_means
     message("Fitting ", key, " ...")
-    set.seed(2026) # reproducibility
+    set.seed(026) # reproducibility
     fit <- models[[mod_name]](datasets[[ds_name]], y, folds) # models[[mod_name]] selects the correct fit function
     results[[key]] <- list(dataset = ds_name,
                            model   = mod_name,
@@ -48,6 +48,8 @@ results = readRDS("results/baseline_results.rds")
 # rbind the results of the second argument 
 summary_cv_df = summary_cv(results)
 
+write.csv(summary_cv_df, "results/summary_cv.csv", row.names = FALSE)
+
 # order by F1 score
 print(summary_cv_df |>
         dplyr::arrange(dplyr::desc(macro_F1), dplyr::desc(balanced_acc)))
@@ -63,7 +65,7 @@ perclassF1_df = perclass_F1_cv(results, class_ord_path = "results/class_ord_from
 
 print(perclassF1_df)
 
-summary_tbl[which.max(summary_tbl$macro_F1), ]
+summary_cv_df[which.max(summary_cv_df$macro_F1), ]
 
 
 # ------------------------------------------------------------------------------
@@ -118,8 +120,8 @@ coef_matrix_std_ref <- coef_matrix_std_ref[rownames(coef_matrix_std_ref) != "Hea
 
 coefs_logreg <- pheatmap(
   coef_matrix_std_ref,
-  # classes are clustered according to the correlation matrix distances
-  cluster_rows    = F, # hc if you want also to plot Healthy 
+  # classes are clustered according to the correlation matrix distances from scripts/03-covariance_analysis
+  cluster_rows    = F, # hc if you want also to plot Healthy
   cluster_cols    = FALSE,
   scale           = "none",
   color           = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
@@ -231,8 +233,8 @@ log_odds_plot <- ggplot(coef_long_ref_std_plot,
   scale_fill_manual(values = my_cols[names(my_cols) != "Healthy"],
                     guide = "none") +
   labs(
-    title    = "Standardized log-odds versus Healthy",
-    subtitle = "Each bar: change in log-odds (disease vs. Healthy) per 1 SD increase in the feature",
+    #title    = "Standardized log-odds versus Healthy",
+    #subtitle = "Each bar: change in log-odds (disease vs. Healthy) per 1 SD increase in the feature",
     x = "Standardized log-odds vs. Healthy (per 1 SD)",
     y = NULL
     # caption = "Bars are directly comparable across features. Positive: feature raises odds of disease over Healthy."
@@ -241,6 +243,7 @@ log_odds_plot <- ggplot(coef_long_ref_std_plot,
   theme(
     strip.text = element_text(face = "bold"),
     plot.title = element_text(face = "bold"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6),
     panel.grid.major.y = element_blank()
   )
 
@@ -250,7 +253,7 @@ ggsave("figures/classification/log_odds.png", plot = log_odds_plot, width = 8, h
 
 
 # ------------------------------------------------------------------------------
-# Variable importance plot for the best - performing random forest
+# Variable importance plot for the best performing random forest
 rf_var_importance <- plot_rf_importance(final_mods[["rf_means_logCV_ratios"]])
 rf_var_importance
 ggsave("figures/classification/rf_var_importance.png", plot = rf_var_importance, width = 8, height = 6, 

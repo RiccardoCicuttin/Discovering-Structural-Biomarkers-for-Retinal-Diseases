@@ -113,7 +113,7 @@ perclass_F1_cv <- function(results,
 # Test-set evaluation
 
 # nestcv objects store the final-fit object differently depending on the
-# underlying model: pull out a uniform entry for the evaluation functions.
+# underlying model: pull out a uniform entry for the evaluation functions
 extract_final_model <- function(entry) {
 
   fit <- entry$fit
@@ -300,13 +300,16 @@ plot_rf_importance <- function(final_mods_entry, top_n = NULL,
   if (inherits(fit, "nestcv.train")) fit <- fit$final_fit
   
   # caret::varImp returns importance as $importance (data.frame).
-  # For multinomial classification, columns are per-class importance plus an
-  # overall column. We use the overall mean across classes as a single score.
+  # With ranger and importance = "impurity" this is a single "Overall" column:
+  # the Gini-decrease is accumulated over all splits regardless of class, so
+  # there is no per-class breakdown to average and the rowMeans below is a
+  # no-op. It is kept so the function still collapses correctly if the model is
+  # ever refitted with a criterion that does return one column per class.
   imp <- caret::varImp(fit)$importance
-  
+
   imp_df <- tibble::tibble(
     feature    = rownames(imp),
-    importance = rowMeans(imp) # avg across classes        
+    importance = rowMeans(imp)
   ) %>%
     dplyr::arrange(dplyr::desc(importance))
   
@@ -326,7 +329,7 @@ plot_rf_importance <- function(final_mods_entry, top_n = NULL,
                      y = forcats::fct_reorder(feature, importance))) +
     geom_col(fill = "#B2182B", color = "black", width = 0.7) +
     labs(
-      title = title,
+      #title = title,
       x     = "Variable importance",
       y     = NULL
     ) +
