@@ -1,4 +1,4 @@
-source("R/packages.R")
+source("R/packages.R", echo=FALSE)
 
 path <- "data/PatientsData.xlsx"
 
@@ -9,7 +9,7 @@ read_sheet_raw <- function(path, sheet, label) {
       label      = label,
       patient_id = as.integer(str_extract(image, "(?<=[A-Za-z_])\\d+(?=\\.jpe?g$)"))
     ) %>%
-    select(-image) %>%
+    dplyr::select(-image) %>%
     relocate(patient_id, label, .after = last_col())
 }
 
@@ -31,7 +31,7 @@ df_raw <- df_raw %>%
   mutate(names = name_recode[names]) 
 
 # each patient is uniquely identified by (label, id)
-patient_key <- df_raw %>% distinct(label, patient_id)
+patient_key <- df_raw %>% distinct(label, patient_id) %>% mutate(row_idx = row_number())
 
 # create partition train - test based on the keys of patients
 set.seed(123)
