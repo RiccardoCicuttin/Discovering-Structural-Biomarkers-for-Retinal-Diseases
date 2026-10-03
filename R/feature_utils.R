@@ -54,3 +54,53 @@ add_logCV <- function(df) {
 # numeric matrix
 # glmnet and nestcv require x to be a numeric matrix
 as_x <- function(df, cols) as.matrix(df[, cols])
+
+
+# Restrict the spatial domain of a raw (wide) dataframe to `range`
+# The features produced downstream are computed by the same code as
+# the full-domain ones, the domain being the only difference
+restrict_domain <- function(df_split, range = c(0, 1)) {
+
+  spatial_cols <- df_split %>%
+    dplyr::select(where(is.numeric), -patient_id) %>%
+    colnames()
+
+  vals <- as.matrix(df_split[, spatial_cols])
+
+  for (i in seq_len(nrow(vals))) {
+    obs    <- which(!is.na(vals[i, ]))   # this row's measurements
+    m      <- length(obs)
+    t_grid <- seq(0, 1, length.out = m)
+    keep   <- t_grid >= range[1] & t_grid <= range[2]
+    vals[i, obs[!keep]] <- NA_real_
+  }
+
+  df_split[spatial_cols] <- as.data.frame(vals)
+  df_split
+}
+
+
+# For each patient (a block of n_layers consecutive rows), compute the
+# inter-layer correlation matrix and flatten its lower triangle into one
+# row of features (e.g. "L1-2", "L1-3", ...).
+#
+# na.omit() drops the positions that are unmeasured in ANY layer, so the
+# correlation is computed on the positions the patient's layers have in common
+# On a domain-restricted frame this is the retained window since
+# restrict_domain() blanks the same normalized interval in every row and the
+# number of measurements is constant across a patient's layers
+patient_layer_corr <- function(df_raw, n_layers = 6, n_features = 880) {
+  n_patients <- nrow(df_raw) / n_layers
+  pairs <- combn(n_layers, 2)
+  col_names <- paste0("L", pairs[1, ], "-", pairs[2, ])
+
+  out <- t(sapply(seq_len(n_patients), function(p) {
+    rows <- ((p - 1) * n_layers + 1):(p * n_layers)
+    patient_block <- na.omit(t(df_raw[rows, 1:n_features]))
+    cor_mat <- cor(patient_block)
+    cor_mat[lower.tri(cor_mat)]
+  }))
+
+  colnames(out) <- col_names
+  out
+}
