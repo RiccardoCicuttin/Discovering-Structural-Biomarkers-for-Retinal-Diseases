@@ -106,6 +106,8 @@ fit_rf <- function(x, y, folds) {
     metric = "logLoss",
     outer_folds  = folds,
     n_outer_folds = 10,
+    n_inner_folds = 10,
+    pass_outer_folds = TRUE,
     num.trees = 500,
     importance = "impurity",
     cv.cores = parallel::detectCores(logical = FALSE)
