@@ -35,7 +35,7 @@ df_raw <- df_raw %>%
 patient_key <- df_raw %>% distinct(label, patient_id) %>% mutate(row_idx = row_number())
 
 # create partition train - test based on the keys of patients
-set.seed(123)
+set.seed(2026)
 train_idx      <- createDataPartition(patient_key$label, p = 0.75, list = FALSE)
 train_patients <- patient_key[ train_idx, ]
 test_patients  <- patient_key[-train_idx, ]
