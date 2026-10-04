@@ -236,8 +236,8 @@ print(eval_logreg$metrics)
 # final_mods <- readRDS("results/final_models.rds")
 # final_mods[["logreg_mfpc_scores"]] <- res_logreg
 # saveRDS(final_mods, file = "results/final_models.rds")
-# saveRDS(res_logreg, file = "results/cv_logreg_mfpca.rds")
-
+saveRDS(res_logreg, file = "results/logreg_mfpca.rds")
+res_logreg <- readRDS("results/logreg_mfpca.rds")
 
 # ------------------------------------------------------------------------------
 # coefficient heatmap
@@ -338,12 +338,18 @@ cat("\n── Test-set evaluation ──\n")
 print(cm_test)
 
 test_metrics <- list(
-  macro_F1     = mean(cm_test$byClass[, "F1"],                na.rm = TRUE),
+  accuracy     = as.numeric(cm_test$overall["Accuracy"]),
+  macro_F1     = mean(cm_test$byClass[, "F1"],na.rm = TRUE),
   balanced_acc = mean(cm_test$byClass[, "Balanced Accuracy"], na.rm = TRUE),
   per_class_F1 = cm_test$byClass[, "F1"],
   confusion    = cm_test$table
 )
+cat(sprintf("\nTest accuracy     = %.3f\n", test_metrics$accuracy))
 cat(sprintf("\nTest macro_F1     = %.3f\n", test_metrics$macro_F1))
 cat(sprintf("Test balanced_acc = %.3f\n", test_metrics$balanced_acc))
+
+cat(sprintf("\nTest macro_F1 per class: "))
+test_metrics$per_class_F1
+
 
 saveRDS(test_metrics, "results/test_metrics_logreg_mfpca.rds")
