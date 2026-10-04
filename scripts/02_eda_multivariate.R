@@ -37,7 +37,7 @@ title("Global", line = 3, cex.main = 1.5)
 # ------------------------------------------------------------------------------
 # Modified format for plotting purposes
 data_long <- retina_train_means %>%
-  select(label, starts_with("layer")) %>%
+  dplyr::select(label, starts_with("layer")) %>%
   pivot_longer(cols = starts_with("layer"), 
                names_to = "layer_name", 
                values_to = "thickness") %>%
@@ -149,7 +149,7 @@ ggsave("figures/exploratory_data_analysis/qqplots.png", plot = qqplots, width = 
 # Multivariate normality
 labels=levels(as.factor(retina_train_means$label)) # there are five diagnosis (4 diseases + healthy)
 for(i in 1:5){ 
-  print(mvn(data = retina_train_means %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
+  print(MVN::mvn(data = retina_train_means %>% filter(label == labels[i]) %>% dplyr::select(-label))$multivariate_normality)
 }
 # no class can be considered normally distributed
 
@@ -168,7 +168,7 @@ retina_train_means_transf=bind_cols(
 
 labels_tr=levels(as.factor(retina_train_means_transf$label))
 for(i in 1:5){
-  print(mvn(data = retina_train_means_transf %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
+  print(MVN::mvn(data = retina_train_means_transf %>% filter(label == labels[i]) %>% dplyr::select(-label))$multivariate_normality)
 }
 # even after the suggested Box-Cox transform, there is no evidence for each class
 # that data are normally distributed 
@@ -191,7 +191,7 @@ retina_train_means_outliers = retina_train_means[which(d2 > qchisq(0.95, df = 6)
 
 retina_train_means_no_outs = retina_train_means[which(d2 <= qchisq(0.95, df = 6)),]
 for(i in 1:5){ 
-  print(mvn(data = retina_train_means_no_outs %>% filter(label == labels[i]) %>% select(-label))$multivariate_normality)
+  print(MVN::mvn(data = retina_train_means_no_outs %>% filter(label == labels[i]) %>% dplyr::select(-label))$multivariate_normality)
 }
 # even without outliers, there is no evidence for each class 
 # that data are normally distributed 
@@ -203,12 +203,12 @@ retina_plots_list =  vector(mode='list', length=5)
 labels = c("AMD", "CSR", "DR", "MH", "Healthy")
 for(i in 1:5){
   long_profiles <- read_excel(path, sheet = i) %>%
-    select(-image) %>% 
+    dplyr::select(-image) %>% 
     mutate(names = fct_inorder(names)) %>%
     group_by(names) %>%
     summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE))) %>%
     mutate(label = "normal") %>%
-    select(-label) %>% 
+    dplyr::select(-label) %>% 
     pivot_longer(
       cols = -names,                 
       names_to = "Raw_Column_Name",         
@@ -222,7 +222,7 @@ for(i in 1:5){
     mutate(Location = row_number()) %>%
     ungroup() %>%
     # Clean the dataset by removing the raw character names
-    select(-Raw_Column_Name)
+    dplyr::select(-Raw_Column_Name)
   
   retina_plots_list[[i]] = ggplot(long_profiles, aes(x = Location, y = Mean_Thickness, fill = names)) +
     geom_area(alpha = 0.85, color = "white", linewidth = 0.2) +
@@ -244,16 +244,3 @@ for(i in 1:5){
 }
 
 #retina_plots_list[[4]]
-
-
-
-
-
-
-
-
-`
-
-
-
-
