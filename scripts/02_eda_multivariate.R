@@ -16,22 +16,47 @@ retina_train_means = readRDS("datasets/train_features.rds")[2:8] %>% relocate(la
 
 # ------------------------------------------------------------------------------
 # Correlation matrices
-# png("figures/exploratory_data_analysis/corrplot.png", width = 2000, height = 1400, res = 200)
-par(mfrow = c(2,3))
-
-for (m in unique(retina_train_means$label)) {
-  
+cor_data = map_dfr(unique(retina_train_means$label), function(m) {
   df = subset(retina_train_means, label == m)[, 1:6]
   cor_mat = cor(df, use = "pairwise.complete.obs")
-  
-  corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
-  title(m, line = 3, cex.main = 1.5)
-}
+  as.data.frame(as.table(cor_mat)) %>%
+    rename(value = Freq) %>%
+    mutate(panel = m)
+})
 
-df=subset(retina_train_means)[,1:6]
-cor_mat =cor(df, use = "pairwise.complete.obs")
-corrplot(cor_mat, method = "color",addCoef.col = "black",number.cex = 1,tl.col = "#2c3e50",tl.srt = 45 )
-title("Global", line = 3, cex.main = 1.5)
+cor_mat_global = cor(retina_train_means[, 1:6], use = "pairwise.complete.obs")
+cor_data_global = as.data.frame(as.table(cor_mat_global)) %>%
+  rename(value = Freq) %>%
+  mutate(panel = "Global")
+
+var_order = colnames(cor_mat_global)
+
+cor_data = bind_rows(cor_data, cor_data_global) %>%
+  mutate(
+    panel = factor(panel, levels = c(unique(retina_train_means$label), "Global")),
+    Var1 = factor(Var1, levels = var_order),
+    Var2 = factor(Var2, levels = rev(var_order))
+  )
+
+corrplots = ggplot(cor_data, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", value)), color = "black", size = 3.2) +
+  facet_wrap(~ panel, ncol = 3) +
+  scale_fill_distiller(palette = "RdBu", direction = 1, limits = c(-1, 1), name = "Corr") +
+  coord_fixed() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(color = "#2c3e50", angle = 45, hjust = 1),
+    axis.text.y = element_text(color = "#2c3e50"),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    strip.background = element_rect(fill = "grey90", color = "black")
+  )
+corrplots
+
+ggsave("figures/exploratory_data_analysis/corrplot.png", plot = corrplots, width = 10, height = 7,
+       units = "in", dpi = 200)
 
 
 # ------------------------------------------------------------------------------
