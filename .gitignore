@@ -52,3 +52,10 @@ rsconnect/
 /data
 /datasets
 /results
+
+# Figures are distributed with the report, not with the code
+/figures
+
+# 
+.DS_Store
+**/.DS_Store
