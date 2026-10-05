@@ -38,3 +38,5 @@ Biomarker-discovery-for-retinal-diseases/
 ```
 
 The raw dataset is not public. `datasets/`, `results/` and `figures/` are generated locally and are not committed.
+
+Full results and analysis are detailed in the [project report](report/Biomarker-Discovery-for-Retinal-Diseases.pdf).
